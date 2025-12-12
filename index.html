@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptRay - AI Prompt Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        /* Base Defaults */
+        --c-bg-main: 10 10 12;     
+        --c-bg-card: 18 18 20;     
+        --c-bg-hover: 24 24 28;    
+        --c-brand: 255 99 99;      
+        --c-brand-hover: 224 79 79;
+        
+        --radius: 1rem; 
+        --font-ui: "Noto Sans SC", "Inter", sans-serif;
+      }
+
+      /* 1. Default (Ray) - Balanced */
+      .theme-default {
+        --c-bg-main: 10 10 12;     
+        --c-bg-card: 18 18 20;     
+        --c-bg-hover: 24 24 28;    
+        --c-brand: 255 99 99;      
+        --c-brand-hover: 224 79 79;
+        --radius: 1rem;
+        --font-ui: "Noto Sans SC", "Inter", sans-serif;
+      }
+
+      /* 2. Midnight (Pro) - Sharp, Serious, Deep Blue */
+      .theme-midnight {
+        --c-bg-main: 2 6 23;       /* Slate 950 */
+        --c-bg-card: 15 23 42;     /* Slate 900 */
+        --c-bg-hover: 30 41 59;    /* Slate 800 */
+        --c-brand: 56 189 248;     /* Sky 400 */
+        --c-brand-hover: 14 165 233;
+        --radius: 0.25rem;         /* Sharp corners */
+        --font-ui: "Inter", sans-serif;
+      }
+
+      /* 3. Aurora (Glass) - Soft, Friendly, Organic */
+      .theme-aurora {
+        --c-bg-main: 20 15 25;     /* Deep Purple/Black */
+        --c-bg-card: 40 30 50;     /* Muted Purple */
+        --c-bg-hover: 60 45 70;    
+        --c-brand: 216 180 254;    /* Purple 300 */
+        --c-brand-hover: 192 132 252;
+        --radius: 1.5rem;          /* Very rounded */
+        --font-ui: "Noto Sans SC", sans-serif;
+      }
+
+      /* 4. Terminal (Hacker) - Raw, Monospace, Zero Radius */
+      .theme-terminal {
+        --c-bg-main: 5 5 5;        /* Pure Black */
+        --c-bg-card: 15 15 15;     
+        --c-bg-hover: 30 30 30;    
+        --c-brand: 74 222 128;     /* Matrix Green */
+        --c-brand-hover: 34 197 94;
+        --radius: 0px;             /* Square */
+        --font-ui: "JetBrains Mono", monospace;
+      }
+
+      body {
+        background-color: rgb(var(--c-bg-main));
+        color: #e4e4e7;
+        font-family: var(--font-ui);
+      }
+      
+      /* Dynamic Border Radius Utility */
+      .rounded-theme { border-radius: var(--radius); }
+      .rounded-t-theme { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+      .rounded-b-theme { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+      .rounded-l-theme { border-top-left-radius: var(--radius); border-bottom-left-radius: var(--radius); }
+      .rounded-r-theme { border-top-right-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+
+      /* Background Patterns & Textures */
+      .bg-noise {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 50; /* Above regular bg, below interactions */
+        pointer-events: none;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+        opacity: 0.6;
+        mix-blend-mode: overlay;
+      }
+
+      .bg-pattern-dots {
+        background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+      .bg-pattern-grid {
+        background-size: 40px 40px;
+        background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+      }
+
+      /* Premium Glass Utility */
+      .glass-panel {
+        background: rgba(var(--c-bg-card), 0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      /* Animations */
+      @keyframes float {
+        0% { transform: translate(0px, 0px) scale(1); }
+        33% { transform: translate(30px, -50px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+        100% { transform: translate(0px, 0px) scale(1); }
+      }
+      .animate-blob {
+        animation: float 10s infinite;
+      }
+      .animation-delay-2000 { animation-delay: 2s; }
+      .animation-delay-4000 { animation-delay: 4s; }
+
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      .animate-shimmer {
+        background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+        background-size: 200% 100%;
+        animation: shimmer 3s infinite;
+      }
+
+      @keyframes slideUpFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-slide-up-fade {
+        animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+      /* Markdown Styles */
+      .markdown-body { color: #d4d4d8; font-size: 0.95rem; line-height: 1.7; }
+      .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #f4f4f5; font-weight: 600; margin-top: 1.5em; margin-bottom: 0.75em; }
+      .markdown-body h1 { font-size: 1.5rem; }
+      .markdown-body code { background-color: rgba(255, 255, 255, 0.1); padding: 0.2em 0.4em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #e4e4e7; }
+      .markdown-body pre { background-color: #000; padding: 1em; border-radius: var(--radius); overflow-x: auto; margin-bottom: 1.5em; border: 1px solid rgba(255, 255, 255, 0.1); }
+      .markdown-body pre:has(.code-block-wrapper) { background-color: transparent; padding: 0; border: none; margin-bottom: 1.5em; }
+      .markdown-body a { color: rgb(var(--c-brand)); text-decoration: underline; text-underline-offset: 4px; }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['var(--font-ui)', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'monospace'],
+            },
+            colors: {
+              gray: {
+                850: 'rgb(var(--c-bg-hover) / <alpha-value>)',
+                900: 'rgb(var(--c-bg-card) / <alpha-value>)', 
+                950: 'rgb(var(--c-bg-main) / <alpha-value>)',
+              },
+              brand: {
+                500: 'rgb(var(--c-brand) / <alpha-value>)',
+                600: 'rgb(var(--c-brand-hover) / <alpha-value>)',
+              }
+            },
+            borderRadius: {
+                'theme': 'var(--radius)',
+            },
+            animation: {
+                'blob': 'float 7s infinite',
+            }
+          }
+        }
+      }
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.32.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2",
+    "prism-react-renderer": "https://aistudiocdn.com/prism-react-renderer@^2.4.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

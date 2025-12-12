@@ -1,0 +1,5 @@
+{
+  "name": "PromptRay",
+  "description": "A beautiful, dark-themed prompt management tool inspired by Ray.so. Organize, tag, and test your AI prompts with Gemini.",
+  "requestFramePermissions": []
+}

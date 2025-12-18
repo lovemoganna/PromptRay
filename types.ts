@@ -1,0 +1,135 @@
+import React from 'react';
+
+export type Category = string;
+
+export interface CategoryDef {
+  id: string;
+  label: string;
+  isCustom: boolean;
+}
+
+export interface Theme {
+  id: string;
+  label: string;
+  colors: {
+    brand: string; 
+    bg: string;
+  };
+  radius: string; // "0px" | "0.25rem" | "0.75rem" | "1.5rem"
+  bgPattern?: 'dots' | 'grid' | 'noise' | 'none';
+}
+
+export interface PromptConfig {
+    model: string;
+    temperature: number;
+    maxOutputTokens: number;
+    topP?: number;
+    topK?: number;
+}
+
+export interface Example {
+    input: string;
+    output: string;
+}
+
+export interface PromptVersion {
+    timestamp: number;
+    content: string;
+    systemInstruction?: string;
+    examples?: Example[];
+    config?: PromptConfig;
+    title: string; // Snapshot title at that time
+}
+
+export interface SavedRun {
+    id: string;
+    timestamp: number;
+    model: string;
+    inputValues: Record<string, string>;
+    output: string;
+    rating?: 'good' | 'bad'; // New field for quality feedback
+}
+
+export type PromptStatus = 'draft' | 'active' | 'archived';
+
+// --- Bilingual Knowledge Schema Extensions ---
+// Output type of the prompt: image / video / audio / text
+export type OutputType = 'image' | 'video' | 'audio' | 'text';
+
+// High-level application scenes (一级标签)
+export type ApplicationScene =
+  | '角色设计'
+  | '场景生成'
+  | '风格转换'
+  | '故事创作'
+  | '工具使用'
+  | '其他';
+
+// These are recommended presets only – UI will still allow free-form strings via string[]
+export type TechnicalLabel =
+  | '角色一致性'
+  | '风格一致性'
+  | '群体一致性'
+  | '纯文本'
+  | '参考图输入'
+  | '多图输入'
+  | '首尾帧'
+  | '尺寸比例'
+  | '数量控制'
+  | '负面提示词'
+  | '分步生成'
+  | '迭代优化'
+  | '组合使用';
+
+export type StyleLabel =
+  | '卡通'
+  | '写实'
+  | '赛博朋克'
+  | '吉卜力风'
+  | string;
+
+export interface Prompt {
+  id: string;
+  title: string;
+  content: string;
+  // Bilingual prompt fields for the knowledge table (optional for legacy prompts)
+  englishPrompt?: string;   // 原始英文 Prompt
+  chinesePrompt?: string;   // 中文翻译 / 改写
+  systemInstruction?: string; // New field for System Prompt/Persona
+  examples?: Example[]; // New field for Few-Shot examples
+  description: string;
+  category: string;
+  tags: string[];
+  // Knowledge metadata fields (all optional, so they don't break existing data)
+  outputType?: OutputType;                  // 图片 / 视频 / 音频 / 文本
+  applicationScene?: ApplicationScene;      // 角色设计 / 场景生成 / ...
+  technicalTags?: string[];                 // 技术标签（二级标签）
+  styleTags?: string[];                     // 风格标签（三级标签）
+  customLabels?: string[];                  // 额外自定义标签
+  previewMediaUrl?: string;                 // 预览媒体 URL
+  source?: string;                          // 文本来源说明（站点名称等）
+  sourceAuthor?: string;                    // 作者
+  sourceUrl?: string;                       // 原文链接
+  recommendedModels?: string[];             // 适用模型列表（Midjourney, DALL-E, Sora, Claude...）
+  usageNotes?: string;                      // 使用说明
+  cautions?: string;                        // 注意事项 / 避坑
+  collectedAt?: number;                     // 收藏时间（单独存一份，避免和 createdAt 混淆）
+  isFavorite: boolean;
+  status?: PromptStatus;
+  createdAt: number;
+  updatedAt?: number;
+  deletedAt?: number; // Soft delete timestamp
+  config?: PromptConfig; // Persisted configuration
+  history?: PromptVersion[]; // Version control
+  savedRuns?: SavedRun[]; // New field for saved generations
+  lastVariableValues?: Record<string, string>; // Persist test inputs
+}
+
+export type PromptFormData = Omit<Prompt, 'id' | 'createdAt' | 'history' | 'deletedAt' | 'savedRuns'>;
+
+export interface SidebarItem {
+  icon: React.ReactNode;
+  label: string;
+  category: string;
+  count?: number;
+}

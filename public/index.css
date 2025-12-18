@@ -1,0 +1,20 @@
+/* Static stylesheet to satisfy /index.css requests.
+   Tailwind styles still come from cdn.tailwindcss.com; this file just
+   provides a minimal reset so the asset is served with the proper
+   text/css MIME type in dev/preview builds. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+

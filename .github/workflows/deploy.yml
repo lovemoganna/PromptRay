@@ -32,9 +32,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # We map your secret GEMINI_API_KEY to VITE_API_KEY which the build expects
+          # Map secret GEMINI_API_KEY to VITE_API_KEY for Vite build
           VITE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Or if you used GEMINI_API_KEY directly, we can pass that too
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           
       - name: Verify Build

@@ -27,3 +27,12 @@ dist-ssr
 .cursor/
 .playwright-mcp/
 *.tsbuildinfo
+
+# Env & local config
+.env
+.env.*
+!.env.example
+
+# Output / misc
+coverage
+*.tsbuildinfo

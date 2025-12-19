@@ -27,6 +27,7 @@ dist-ssr
 .cursor/
 .playwright-mcp/
 *.tsbuildinfo
+.gemini/
 
 # Env & local config
 .env
@@ -36,3 +37,5 @@ dist-ssr
 # Output / misc
 coverage
 *.tsbuildinfo
+.DS_Store
+Thumbs.db

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Prompt, PromptFormData, PromptConfig, PromptVersion, SavedRun } from '../types';
+import { Prompt, PromptFormData, PromptConfig, PromptVersion, SavedRun, Theme } from '../types';
 import { Icons } from './Icons';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CodeSnippetsModal } from './CodeSnippetsModal';
-import { AestheticCard } from './AestheticCard';
+import { PromptShareImage } from './PromptShareImage';
 import { PromptExamplesTab } from './promptModal/PromptExamplesTab';
 import { PromptTestTab } from './promptModal/PromptTestTab';
 import { PromptPreviewTab } from './promptModal/PromptPreviewTab';
@@ -26,11 +26,12 @@ interface PromptModalProps {
   onPrev?: () => void;
   hasNext?: boolean;
   hasPrev?: boolean;
+  currentTheme?: Theme; // Current theme for share image
 }
 
 const PromptModalComponent: React.FC<PromptModalProps> = ({ 
     isOpen, onClose, onSave, initialData, onDuplicate, onNotify, allCategories, allAvailableTags,
-    onNext, onPrev, hasNext, hasPrev
+    onNext, onPrev, hasNext, hasPrev, currentTheme
 }) => {
   const [formData, setFormData] = useState<PromptFormData>({
     title: '',
@@ -489,25 +490,6 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
       setCopiedPreview(true);
       setTimeout(() => setCopiedPreview(false), 2000);
   };
-  const handleDownloadPreview = () => {
-      if (!formData.previewMediaUrl) {
-          onNotify?.('当前提示词尚未配置预览图片 URL', 'info');
-          return;
-      }
-      // Simple link download attempt for external URLs
-      try {
-          const link = document.createElement('a');
-          link.href = formData.previewMediaUrl;
-          link.download = `${formData.title || 'prompt'}-preview`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          onNotify?.('预览图片下载已开始', 'success');
-      } catch (error) {
-          console.error('Download preview image failed', error);
-          onNotify?.('下载预览图片时出错，请稍后重试。', 'error');
-      }
-  };
 
   const handleCopyEnglishPrompt = () => {
       if (!formData.englishPrompt) {
@@ -561,14 +543,12 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
 
   if (!isOpen) return null;
 
-  if (shareMode) {
+  if (shareMode && currentTheme) {
       return (
-          <AestheticCard 
+          <PromptShareImage 
             data={formData} 
-            isModal={true} 
+            theme={currentTheme}
             onClose={() => setShareMode(false)}
-            onDownload={handleDownloadPreview}
-            onCopy={handleCopyRawPrompt}
             previewMode={previewMode}
             getCompiledPrompt={getCompiledPrompt}
           />

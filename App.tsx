@@ -816,6 +816,7 @@ const App: React.FC = () => {
             onPrev={() => navigatePrompt('prev')}
             hasNext={!!nextPrompt}
             hasPrev={!!prevPrompt}
+            currentTheme={currentThemeObj}
         />
         
         <CommandPalette 

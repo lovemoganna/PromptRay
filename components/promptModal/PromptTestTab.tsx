@@ -16,10 +16,11 @@ interface PromptTestTabProps {
   onVariableChange: (name: string, value: string) => void;
   onMagicFill: () => void;
   onRun: () => void;
-  onSaveRun: () => void;
+  onSaveRun: (name?: string, description?: string, isCheckpoint?: boolean) => void;
   onLoadRun: (run: SavedRun) => void;
   onRateRun: (runId: string, rating: 'good' | 'bad') => void;
   onDeleteRun: (runId: string) => void;
+  onResumeFromCheckpoint?: (run: SavedRun) => void;
 }
 
 export const PromptTestTab: React.FC<PromptTestTabProps> = ({
@@ -38,7 +39,12 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
   onLoadRun,
   onRateRun,
   onDeleteRun,
+  onResumeFromCheckpoint,
 }) => {
+  const [showSaveDialog, setShowSaveDialog] = React.useState(false);
+  const [saveName, setSaveName] = React.useState('');
+  const [saveDescription, setSaveDescription] = React.useState('');
+  const [saveAsCheckpoint, setSaveAsCheckpoint] = React.useState(false);
   return (
     <div className="space-y-8 w-full animate-slide-up-fade">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -57,7 +63,8 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
                 onChange={(e) => onConfigChange('model', e.target.value)}
                 className="w-full bg-gray-950/80 border border-white/15 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 transition-all hover:border-white/20 backdrop-blur-sm cursor-pointer"
               >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Legacy)</option>
                 <option value="gemini-3-pro-preview">Gemini 3 Pro</option>
               </select>
             </div>
@@ -184,13 +191,22 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
                   </span>
                   <div className="flex gap-2">
                     {!isTesting && (
-                      <button
-                        onClick={onSaveRun}
-                        className="text-xs flex items-center gap-1.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 px-3 py-1.5 rounded-lg border border-brand-500/30 hover:border-brand-500/40 transition-all duration-200 transform hover:scale-105 active:scale-95"
-                        title="Save this run to history"
-                      >
-                        <Icons.Check size={12} /> Save
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setShowSaveDialog(true)}
+                          className="text-xs flex items-center gap-1.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 px-3 py-1.5 rounded-lg border border-brand-500/30 hover:border-brand-500/40 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                          title="Save test case with name and description"
+                        >
+                          <Icons.Check size={12} /> Save As...
+                        </button>
+                        <button
+                          onClick={() => onSaveRun()}
+                          className="text-xs flex items-center gap-1.5 bg-gray-500/15 hover:bg-gray-500/25 text-gray-400 px-3 py-1.5 rounded-lg border border-gray-500/30 hover:border-gray-500/40 transition-all duration-200 transform hover:scale-105 active:scale-95"
+                          title="Quick save (auto-named)"
+                        >
+                          <Icons.Check size={12} /> Quick Save
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => navigator.clipboard.writeText(testResult || '')}
@@ -265,7 +281,12 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
                     className="flex-1 flex flex-col gap-1"
                     onClick={() => onLoadRun(run)}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {run.name && (
+                        <span className="text-xs font-semibold text-gray-200">
+                          {run.name}
+                        </span>
+                      )}
                       <span
                         className={`text-xs font-mono font-medium ${
                           run.rating === 'good'
@@ -280,7 +301,17 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
                       <span className="text-[10px] text-gray-500 border border-white/10 px-1.5 py-0.5 rounded bg-white/5">
                         {run.model.split('-').slice(-1)[0]}
                       </span>
+                      {run.isCheckpoint && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                          断点
+                        </span>
+                      )}
                     </div>
+                    {run.description && (
+                      <div className="text-[10px] text-gray-500 italic">
+                        {run.description}
+                      </div>
+                    )}
                     <div className="text-[10px] text-gray-500 truncate max-w-[200px]">
                       {run.output.slice(0, 60)}...
                     </div>
@@ -310,9 +341,24 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
                     >
                       <Icons.ThumbsDown size={12} />
                     </button>
+                    {onResumeFromCheckpoint && (run.isCheckpoint || run.partialOutput) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onResumeFromCheckpoint(run);
+                        }}
+                        className="p-1.5 text-purple-400 hover:text-purple-300 hover:bg-purple-500/15 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95"
+                        title="Resume from checkpoint"
+                      >
+                        <Icons.Run size={12} />
+                      </button>
+                    )}
                     <div className="w-[1px] h-4 bg-white/10 mx-1" />
                     <button
-                      onClick={() => onDeleteRun(run.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteRun(run.id);
+                      }}
                       className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200 transform hover:scale-110 active:scale-95"
                       title="Delete"
                     >
@@ -325,6 +371,74 @@ export const PromptTestTab: React.FC<PromptTestTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Save Dialog */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md">
+          <div className="bg-gray-900 border border-white/20 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Save Test Case</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-400 mb-2 block">Name</label>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="Test Case Name"
+                  className="w-full bg-gray-950 border border-white/15 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500/50"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 mb-2 block">Description (Optional)</label>
+                <textarea
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="What does this test case verify?"
+                  className="w-full bg-gray-950 border border-white/15 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500/50 resize-y min-h-[80px]"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="checkpoint"
+                  checked={saveAsCheckpoint}
+                  onChange={(e) => setSaveAsCheckpoint(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 bg-gray-950 text-purple-500 focus:ring-purple-500"
+                />
+                <label htmlFor="checkpoint" className="text-xs text-gray-400">
+                  Save as checkpoint (for resume)
+                </label>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowSaveDialog(false);
+                    setSaveName('');
+                    setSaveDescription('');
+                    setSaveAsCheckpoint(false);
+                  }}
+                  className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onSaveRun(saveName || undefined, saveDescription || undefined, saveAsCheckpoint);
+                    setShowSaveDialog(false);
+                    setSaveName('');
+                    setSaveDescription('');
+                    setSaveAsCheckpoint(false);
+                  }}
+                  className="px-4 py-2 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

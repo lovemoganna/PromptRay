@@ -1,4 +1,4 @@
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
 export const DEFAULT_TIMEOUT_MS = 60000; // 60 seconds
 

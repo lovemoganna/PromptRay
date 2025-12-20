@@ -65,7 +65,7 @@ export const usePromptMetaAndTags = ({
               ? parsed.recommendedModels
               : prev.recommendedModels && prev.recommendedModels.length > 0
               ? prev.recommendedModels
-              : ['gemini-2.5-flash'],
+              : ['gemini-3-flash-preview'],
         }));
 
         onNotify?.('已使用模型根据提示词内容自动生成元信息，你可以继续微调。', 'success');

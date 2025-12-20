@@ -141,7 +141,9 @@ const isValidPrompt = (obj: any): obj is Prompt => {
     typeof obj.category === 'string' &&
     Array.isArray(obj.tags) &&
     typeof obj.isFavorite === 'boolean' &&
-    typeof obj.createdAt === 'number'
+    typeof obj.createdAt === 'number' &&
+    // 确保 examples 字段如果存在，必须是数组
+    (obj.examples === undefined || Array.isArray(obj.examples))
   );
 };
 
@@ -159,11 +161,21 @@ const validateAndSanitizePrompts = (data: any): Prompt[] => {
 
   data.forEach((item, index) => {
     if (isValidPrompt(item)) {
+      // 确保 examples 被正确保留（即使是空数组也要保留）
+      const sanitizedExamples = Array.isArray(item.examples) 
+        ? item.examples.filter((ex: any) => 
+            ex && 
+            typeof ex === 'object' && 
+            typeof ex.input === 'string' && 
+            typeof ex.output === 'string'
+          )
+        : undefined;
+      
       // Ensure all required fields exist with defaults
       validPrompts.push({
         ...item,
         systemInstruction: item.systemInstruction || undefined,
-        examples: Array.isArray(item.examples) ? item.examples : undefined,
+        examples: sanitizedExamples, // 保留有效的 examples
         config: item.config || undefined,
         history: Array.isArray(item.history) ? item.history : undefined,
         savedRuns: Array.isArray(item.savedRuns) ? item.savedRuns : undefined,

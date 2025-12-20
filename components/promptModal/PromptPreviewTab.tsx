@@ -37,6 +37,34 @@ export const PromptPreviewTab: React.FC<PromptPreviewTabProps> = ({
   onVariableChange,
   onSetActiveTab,
 }) => {
+  // Interpolation function for variable replacement
+  const getInterpolatedText = (text: string): string => {
+    if (previewMode === 'raw' || !text) return text;
+    let result = text;
+    detectedVariables.forEach(v => {
+      const value = variableValues[v] || `{${v}}`;
+      result = result.split(`{${v}}`).join(value);
+    });
+    return result;
+  };
+
+  // Fallback to content if chinesePrompt/englishPrompt is empty
+  const displayChinese = formData.chinesePrompt || formData.content || '';
+  const displayEnglish = formData.englishPrompt || formData.content || '';
+  
+  const interpolatedEnglish = getInterpolatedText(displayEnglish);
+  const interpolatedChinese = getInterpolatedText(displayChinese);
+
+  // Calculate stats for display
+  const englishStats = {
+    chars: interpolatedEnglish.length,
+    words: interpolatedEnglish.split(/\s+/).filter(w => w.length > 0).length,
+  };
+  const chineseStats = {
+    chars: interpolatedChinese.length,
+    words: interpolatedChinese.split(/[\s\u3000]+/).filter(w => w.length > 0).length,
+  };
+
   return (
     <div className="space-y-8 w-full max-w-5xl mx-auto animate-slide-up-fade">
       {/* Quick Nav for long content */}
@@ -90,7 +118,7 @@ export const PromptPreviewTab: React.FC<PromptPreviewTabProps> = ({
             </h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {formData.englishPrompt && (
+            {displayEnglish && (
               <button
                 onClick={onCopyEnglishPrompt}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/15 bg-white/5 text-[11px] font-semibold text-gray-100 hover:bg-white/10 hover:border-white/25 transition-colors"
@@ -99,7 +127,7 @@ export const PromptPreviewTab: React.FC<PromptPreviewTabProps> = ({
                 <span>Copy EN</span>
               </button>
             )}
-            {formData.chinesePrompt && (
+            {displayChinese && (
               <button
                 onClick={onCopyChinesePrompt}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/15 bg-white/5 text-[11px] font-semibold text-gray-100 hover:bg-white/10 hover:border-white/25 transition-colors"
@@ -108,7 +136,7 @@ export const PromptPreviewTab: React.FC<PromptPreviewTabProps> = ({
                 <span>复制中文</span>
               </button>
             )}
-            {(formData.englishPrompt || formData.chinesePrompt) && (
+            {(displayEnglish || displayChinese) && (
               <button
                 onClick={onCopyBilingualPrompt}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-brand-500/40 bg-brand-500/20 text-[11px] font-semibold text-brand-50 hover:bg-brand-500/30 hover:border-brand-500/60 transition-colors"
@@ -119,23 +147,116 @@ export const PromptPreviewTab: React.FC<PromptPreviewTabProps> = ({
             )}
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <div className="text-[11px] uppercase tracking-wider text-blue-300/80 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(56,189,248,0.8)]" />
-              <span>English Preview</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
+          {/* English Preview - Enhanced */}
+          <div className="group/preview-card space-y-3 relative flex flex-col">
+            {/* Header with enhanced visual hierarchy */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="absolute w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_12px_rgba(56,189,248,0.9)] animate-pulse"></span>
+                  <span className="relative w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] uppercase tracking-wider font-bold bg-gradient-to-r from-blue-300 to-blue-200 bg-clip-text text-transparent">
+                    English Preview
+                  </span>
+                  {interpolatedEnglish && (
+                    <span className="text-[9px] text-gray-500 font-mono bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                      {englishStats.chars} chars · {englishStats.words} words
+                    </span>
+                  )}
+                </div>
+              </div>
+              {interpolatedEnglish && (
+                <button
+                  onClick={onCopyEnglishPrompt}
+                  className="opacity-0 group-hover/preview-card:opacity-100 transition-opacity duration-200 p-1.5 rounded-md hover:bg-white/10 border border-transparent hover:border-white/20"
+                  title="Copy English prompt"
+                >
+                  <Icons.Copy size={14} className="text-gray-400 hover:text-blue-300 transition-colors" />
+                </button>
+              )}
             </div>
-            <div className="text-[12px] md:text-sm text-slate-50 bg-slate-950/80 border border-white/10 rounded-lg p-3 font-mono whitespace-pre-wrap min-h-[60px] line-clamp-4 shadow-inner shadow-black/60">
-              {formData.englishPrompt || 'No English prompt yet'}
+            
+            {/* Preview content with enhanced styling */}
+            <div className="relative text-[12px] md:text-sm text-slate-50 bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-slate-950/95 border border-blue-500/20 rounded-xl p-4 font-mono whitespace-pre-wrap h-[200px] overflow-y-auto custom-scrollbar shadow-2xl shadow-blue-500/10 backdrop-blur-sm hover:border-blue-500/40 hover:shadow-blue-500/20 transition-all duration-300 group-hover/preview-card:scale-[1.01] flex-1">
+              {/* Gradient overlay on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent rounded-xl opacity-0 group-hover/preview-card:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              
+              {/* Top accent line */}
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-blue-500/0 via-blue-500/50 to-blue-500/0 opacity-0 group-hover/preview-card:opacity-100 transition-opacity duration-300"></div>
+              
+              {/* Content */}
+              <div className="relative z-10 leading-relaxed">
+                {interpolatedEnglish || (
+                  <span className="text-gray-500 italic">No English prompt yet</span>
+                )}
+              </div>
+              
+              {/* Live indicator for interpolated mode */}
+              {previewMode === 'interpolated' && detectedVariables.length > 0 && interpolatedEnglish && (
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-blue-500/35 to-blue-500/25 border border-blue-500/60 rounded-lg text-[9px] text-blue-100 font-bold backdrop-blur-md shadow-xl shadow-blue-500/40 z-20 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-200 animate-pulse shadow-[0_0_8px_rgba(56,189,248,1)]"></span>
+                  Live
+                </div>
+              )}
             </div>
           </div>
-          <div className="space-y-1">
-            <div className="text-[11px] uppercase tracking-wider text-emerald-300/80 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]" />
-              <span>中文预览</span>
+
+          {/* Chinese Preview - Enhanced */}
+          <div className="group/preview-card space-y-3 relative flex flex-col">
+            {/* Header with enhanced visual hierarchy */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="absolute w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)] animate-pulse"></span>
+                  <span className="relative w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] uppercase tracking-wider font-bold bg-gradient-to-r from-emerald-300 to-emerald-200 bg-clip-text text-transparent">
+                    中文预览
+                  </span>
+                  {interpolatedChinese && (
+                    <span className="text-[9px] text-gray-500 font-mono bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                      {chineseStats.chars} 字符 · {chineseStats.words} 词
+                    </span>
+                  )}
+                </div>
+              </div>
+              {interpolatedChinese && (
+                <button
+                  onClick={onCopyChinesePrompt}
+                  className="opacity-0 group-hover/preview-card:opacity-100 transition-opacity duration-200 p-1.5 rounded-md hover:bg-white/10 border border-transparent hover:border-white/20"
+                  title="复制中文提示词"
+                >
+                  <Icons.Copy size={14} className="text-gray-400 hover:text-emerald-300 transition-colors" />
+                </button>
+              )}
             </div>
-            <div className="text-[12px] md:text-sm text-slate-50 bg-slate-950/80 border border-white/10 rounded-lg p-3 whitespace-pre-wrap min-h-[60px] line-clamp-4 shadow-inner shadow-black/60">
-              {formData.chinesePrompt || '尚未填写中文提示词'}
+            
+            {/* Preview content with enhanced styling */}
+            <div className="relative text-[12px] md:text-sm text-slate-50 bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-slate-950/95 border border-emerald-500/20 rounded-xl p-4 whitespace-pre-wrap h-[200px] overflow-y-auto custom-scrollbar shadow-2xl shadow-emerald-500/10 backdrop-blur-sm hover:border-emerald-500/40 hover:shadow-emerald-500/20 transition-all duration-300 group-hover/preview-card:scale-[1.01] flex-1">
+              {/* Gradient overlay on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent rounded-xl opacity-0 group-hover/preview-card:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              
+              {/* Top accent line */}
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0 opacity-0 group-hover/preview-card:opacity-100 transition-opacity duration-300"></div>
+              
+              {/* Content */}
+              <div className="relative z-10 leading-relaxed">
+                {interpolatedChinese || (
+                  <span className="text-gray-500 italic">尚未填写中文提示词</span>
+                )}
+              </div>
+              
+              {/* Live indicator for interpolated mode */}
+              {previewMode === 'interpolated' && detectedVariables.length > 0 && interpolatedChinese && (
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-emerald-500/35 to-emerald-500/25 border border-emerald-500/60 rounded-lg text-[9px] text-emerald-100 font-bold backdrop-blur-md shadow-xl shadow-emerald-500/40 z-20 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-200 animate-pulse shadow-[0_0_8px_rgba(16,185,129,1)]"></span>
+                  实时
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -203,7 +324,7 @@ export const PromptPreviewTab: React.FC<PromptPreviewTabProps> = ({
       {/* Description Section */}
       <div
         id="section-description"
-        className="bg-gray-900/50 rounded-theme p-6 md:p-7 border border-white/12 backdrop-blur-sm shadow-lg transition-all duration-300"
+        className="bg-gray-900/50 rounded-theme p-6 md:p-7 backdrop-blur-sm shadow-lg transition-all duration-300"
       >
         <h3 className="text-xs font-semibold text-gray-400 mb-4 uppercase tracking-widest flex items-center gap-2.5">
           <Icons.Edit size={18} className="text-gray-500" /> Description

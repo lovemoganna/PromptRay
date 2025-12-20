@@ -19,7 +19,7 @@ interface PromptModalProps {
   onSave: (data: PromptFormData & { savedRuns?: SavedRun[]; lastVariableValues?: Record<string, string> }) => void;
   initialData?: Prompt | null;
   onDuplicate?: (data: PromptFormData) => void;
-  onNotify?: (message: string, type: 'success' | 'info' | 'error') => void;
+  onNotify?: (message: string, type?: 'success' | 'info' | 'error') => void;
   allCategories: string[];
   allAvailableTags: string[]; // For autocomplete
   onNext?: () => void;
@@ -58,7 +58,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
     isFavorite: false,
     status: 'active',
     config: {
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         temperature: 0.7,
         maxOutputTokens: 2000,
         topP: 0.95,
@@ -103,6 +103,9 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   // AbortController for canceling API requests
   const abortControllerRef = useRef<AbortController | null>(null);
   
+  // Track previous content to sync with chinesePrompt
+  const prevContentRef = useRef<string>('');
+  
   // Confirm Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -145,7 +148,14 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
     handleRemoveExample,
     handleClearExamples,
     handleGenerateExamplesWithModel,
+    handleGenerateIterativeExample,
     handleAutoFillExampleOutput,
+    handleExportExamples,
+    handleImportExamples,
+    handleSaveToHistory,
+    handleLoadFromHistory,
+    getHistoryList,
+    handleSelectDirectory,
   } = usePromptExamplesLogic({
     formData,
     setFormData,
@@ -173,7 +183,14 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
         englishPrompt: initialData.englishPrompt || initialData.content,
         chinesePrompt: initialData.chinesePrompt || '',
         systemInstruction: initialData.systemInstruction || '',
-        examples: initialData.examples || [],
+        examples: Array.isArray(initialData.examples) 
+          ? initialData.examples.filter((ex: any) => 
+              ex && 
+              typeof ex === 'object' && 
+              typeof ex.input === 'string' && 
+              typeof ex.output === 'string'
+            )
+          : [],
         category: initialData.category,
         tags: initialData.tags,
         outputType: initialData.outputType,
@@ -191,15 +208,17 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
         isFavorite: initialData.isFavorite,
         status: initialData.status || 'active',
         config: initialData.config || {
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             temperature: 0.7,
             maxOutputTokens: 2000,
             topP: 0.95,
             topK: 64
         }
       });
-      setSavedRuns(initialData.savedRuns || []);
+      // 确保 savedRuns 被正确加载
+      setSavedRuns(Array.isArray(initialData.savedRuns) ? initialData.savedRuns : []);
       setVariableValues(initialData.lastVariableValues || {});
+      prevContentRef.current = initialData.content;
       setActiveTab('preview'); 
     } else {
         setFormData({
@@ -226,7 +245,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
             cautions: '',
             isFavorite: false,
             config: {
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3-flash-preview',
                 temperature: 0.7,
                 maxOutputTokens: 2000,
                 topP: 0.95,
@@ -235,12 +254,45 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
         });
         setSavedRuns([]);
         setVariableValues({});
+        prevContentRef.current = '';
         setActiveTab('edit');
     }
     setTestResult(null);
     setPreviewMode('raw');
     setShareMode(false);
   }, [initialData, isOpen]);
+
+  // 自动保存 formData（包括 examples）的 debounce 机制
+  const autoSaveFormDataTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    // 只有在编辑现有 prompt 时才自动保存
+    if (!initialData || !isOpen) return;
+    
+    // 清除之前的定时器
+    if (autoSaveFormDataTimeoutRef.current) {
+      clearTimeout(autoSaveFormDataTimeoutRef.current);
+    }
+    
+    // 延迟 1.5 秒自动保存，避免频繁保存（静默保存，不显示通知）
+    autoSaveFormDataTimeoutRef.current = setTimeout(() => {
+      onSave({ ...formData, savedRuns, lastVariableValues: variableValues });
+    }, 1500);
+    
+    return () => {
+      if (autoSaveFormDataTimeoutRef.current) {
+        clearTimeout(autoSaveFormDataTimeoutRef.current);
+      }
+    };
+  }, [
+    JSON.stringify(formData.examples), // 使用 JSON.stringify 来深度比较
+    formData.content, 
+    formData.systemInstruction, 
+    JSON.stringify(formData.config),
+    isOpen, 
+    initialData?.id, // 只依赖 id，避免对象引用变化
+    JSON.stringify(savedRuns),
+    JSON.stringify(variableValues)
+  ]);
 
   // Cleanup: Cancel any ongoing requests when modal closes
   useEffect(() => {
@@ -299,6 +351,23 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, formData, activeTab, showSnippets, savedRuns, variableValues, hasNext, hasPrev, onNext, onPrev, shareMode, tabSequence]);
+
+  // Sync content to chinesePrompt when content changes
+  useEffect(() => {
+    // Only sync if content changed and chinesePrompt is empty or matches previous content
+    // This prevents overwriting manually set chinesePrompt
+    if (formData.content !== prevContentRef.current) {
+      const prevContent = prevContentRef.current;
+      setFormData(prev => {
+        // Only update if chinesePrompt is empty or was synced from previous content
+        if (!prev.chinesePrompt || prev.chinesePrompt === prevContent) {
+          return { ...prev, chinesePrompt: formData.content };
+        }
+        return prev;
+      });
+      prevContentRef.current = formData.content;
+    }
+  }, [formData.content]);
 
   // Variable Detection with validation
   useEffect(() => {
@@ -424,7 +493,26 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
             if (chunk.startsWith("Error:") || chunk.startsWith("\n[Error:")) {
                  if (onNotify) onNotify(chunk.trim(), "error");
             }
-            setTestResult(prev => (prev || "") + chunk);
+            setTestResult(prev => {
+                const newResult = (prev || "") + chunk;
+                // 每1000字符自动保存一次断点（如果当前有断点标记）
+                if (newResult.length % 1000 === 0 && newResult.length > 0) {
+                    // 延迟保存，避免频繁更新
+                    setTimeout(() => {
+                        const checkpointRun = savedRuns.find(r => r.isCheckpoint && r.id.startsWith('checkpoint-'));
+                        if (checkpointRun) {
+                            const updatedRuns = savedRuns.map(r => 
+                                r.id === checkpointRun.id
+                                    ? { ...r, partialOutput: newResult, checkpoint: String(newResult.length) }
+                                    : r
+                            );
+                            setSavedRuns(updatedRuns);
+                            onSave({ ...formData, savedRuns: updatedRuns, lastVariableValues: variableValues });
+                        }
+                    }, 500);
+                }
+                return newResult;
+            });
         }
     } catch (e) {
         // Don't report error if request was aborted
@@ -442,19 +530,63 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
     }
   };
 
-  const handleSaveRun = () => {
+  // 自动保存：当有输出时自动保存（延迟保存，避免频繁保存）
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (testResult && !isTesting && testResult.length > 50) {
+      // 延迟5秒自动保存（避免在生成过程中保存）
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        // 检查是否已存在相同的自动保存记录（基于输出内容的前100字符）
+        const outputHash = testResult.substring(0, 100);
+        const existingAuto = savedRuns.find(r => 
+          r.id.startsWith('auto-') && 
+          r.output.substring(0, 100) === outputHash
+        );
+        if (!existingAuto) {
+          const autoRun: SavedRun = {
+            id: `auto-${Date.now()}`,
+            timestamp: Date.now(),
+            model: formData.config?.model || 'unknown',
+            inputValues: { ...variableValues },
+            output: testResult,
+            name: `Auto-saved ${new Date().toLocaleTimeString()}`,
+            config: formData.config,
+          };
+          setSavedRuns(prev => {
+            const updatedRuns = [autoRun, ...prev.filter(r => !r.id.startsWith('auto-'))].slice(0, 30);
+            onSave({ ...formData, savedRuns: updatedRuns, lastVariableValues: variableValues });
+            return updatedRuns;
+          });
+        }
+      }, 5000);
+    }
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [testResult, isTesting, variableValues, formData.config, savedRuns, setSavedRuns, onSave, formData]);
+
+  const handleSaveRun = (name?: string, description?: string, isCheckpoint: boolean = false) => {
       if (!testResult) return;
       const newRun: SavedRun = {
           id: crypto.randomUUID(),
           timestamp: Date.now(),
           model: formData.config?.model || 'unknown',
           inputValues: { ...variableValues },
-          output: testResult
+          output: testResult,
+          name: name || `Test Case ${savedRuns.length + 1}`,
+          description,
+          isCheckpoint,
+          config: formData.config,
       };
-      const updatedRuns = [newRun, ...savedRuns].slice(0, 20);
+      const updatedRuns = [newRun, ...savedRuns].slice(0, 50); // 增加到50个
       setSavedRuns(updatedRuns);
       onSave({ ...formData, savedRuns: updatedRuns, lastVariableValues: variableValues });
-      if (onNotify) onNotify("Run saved to history", "success");
+      if (onNotify) onNotify(`Test case "${newRun.name}" saved`, "success");
   };
 
   const handleRateRun = (runId: string, rating: 'good' | 'bad') => {
@@ -466,6 +598,98 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   const handleLoadRun = (run: SavedRun) => {
       setVariableValues(run.inputValues);
       setTestResult(run.output);
+      // 如果保存了配置，恢复配置
+      if (run.config) {
+          setFormData(prev => ({ ...prev, config: run.config }));
+      }
+      if (onNotify) onNotify(`Loaded test case: ${run.name || 'Untitled'}`, "success");
+  };
+
+  // 从历史状态自动导入（打开modal时）
+  useEffect(() => {
+    if (initialData?.savedRuns && initialData.savedRuns.length > 0 && !testResult) {
+      // 自动加载最后一个标记为"good"的运行，或最后一个运行
+      const goodRun = initialData.savedRuns.find(r => r.rating === 'good');
+      const lastRun = goodRun || initialData.savedRuns[0];
+      if (lastRun && activeTab === 'test') {
+        // 延迟加载，避免干扰用户
+        setTimeout(() => {
+          handleLoadRun(lastRun);
+        }, 500);
+      }
+    }
+  }, [initialData, activeTab]);
+
+  // 断点续跑：从断点继续生成
+  const handleResumeFromCheckpoint = async (run: SavedRun) => {
+    if (!run.checkpoint && !run.partialOutput) {
+      if (onNotify) onNotify("This run doesn't have a checkpoint", "info");
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(run.partialOutput || run.output);
+    
+    try {
+      const promptToSend = getCompiledPrompt();
+      const systemToSend = getCompiledSystemInstruction();
+      const examplesToSend = getCompiledExamples();
+      
+      if (!promptToSend) {
+        setIsTesting(false);
+        if (onNotify) onNotify("Prompt is empty!", "error");
+        return;
+      }
+
+      // 创建续跑提示：基于已有输出继续生成
+      const resumePrompt = `${promptToSend}\n\n[Continue from previous output]\n${run.partialOutput || run.output}`;
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      const stream = runGeminiPromptStream(resumePrompt, { 
+        model: formData.config?.model || run.config?.model,
+        temperature: formData.config?.temperature ?? run.config?.temperature ?? 0.7, 
+        maxOutputTokens: formData.config?.maxOutputTokens ?? run.config?.maxOutputTokens ?? 2000,
+        topP: formData.config?.topP ?? run.config?.topP,
+        topK: formData.config?.topK ?? run.config?.topK,
+        systemInstruction: systemToSend,
+        examples: examplesToSend,
+        signal: abortController.signal
+      });
+
+      let continuedOutput = run.partialOutput || run.output;
+      for await (const chunk of stream) {
+        if (abortController.signal.aborted) return;
+        if (chunk.startsWith("Error:") || chunk.startsWith("\n[Error:")) {
+          if (onNotify) onNotify(chunk.trim(), "error");
+        }
+        continuedOutput += chunk;
+        setTestResult(continuedOutput);
+      }
+
+      // 更新断点
+      setSavedRuns(prev => {
+        const updatedRuns = prev.map(r => 
+          r.id === run.id 
+            ? { ...r, partialOutput: continuedOutput, checkpoint: String(continuedOutput.length) }
+            : r
+        );
+        onSave({ ...formData, savedRuns: updatedRuns, lastVariableValues: variableValues });
+        return updatedRuns;
+      });
+
+      if (onNotify) onNotify("Resumed from checkpoint successfully", "success");
+    } catch (e) {
+      if (abortControllerRef.current?.signal.aborted) return;
+      const errorMsg = e instanceof Error ? e.message : "Unknown error";
+      if (onNotify) onNotify(`Resume failed: ${errorMsg}`, "error");
+    } finally {
+      if (!abortControllerRef.current?.signal.aborted) {
+        setIsTesting(false);
+      }
+      abortControllerRef.current = null;
+    }
   };
 
   const handleDeleteRun = (runId: string) => {
@@ -551,6 +775,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
             onClose={() => setShareMode(false)}
             previewMode={previewMode}
             getCompiledPrompt={getCompiledPrompt}
+            onNotify={onNotify}
           />
       );
   }
@@ -706,11 +931,18 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
                     isGeneratingExamples={isGeneratingExamples}
                     autoFillingIndex={autoFillingIndex}
                     onGenerateExamples={handleGenerateExamplesWithModel}
+                    onGenerateIterative={handleGenerateIterativeExample}
                     onAddExample={handleAddExample}
                     onClearExamples={handleClearExamples}
                     onRemoveExample={handleRemoveExample}
                     onUpdateExample={handleUpdateExample}
                     onAutoFillOutput={handleAutoFillExampleOutput}
+                    onExportExamples={handleExportExamples}
+                    onImportExamples={handleImportExamples}
+                    onSaveToHistory={handleSaveToHistory}
+                    onLoadFromHistory={handleLoadFromHistory}
+                    getHistoryList={getHistoryList}
+                    onSelectDirectory={handleSelectDirectory}
                 />
             )}
 
@@ -732,6 +964,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
                     onLoadRun={handleLoadRun}
                     onRateRun={handleRateRun}
                     onDeleteRun={handleDeleteRun}
+                    onResumeFromCheckpoint={handleResumeFromCheckpoint}
                 />
             )}
             

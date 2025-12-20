@@ -8,8 +8,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    // Critical for GitHub Pages: Use relative base path.
-    // This allows the app to load assets correctly whether at domain root or /PromptRay/
+    // GitHub Pages usually implies a subdirectory like /repo-name/
+    // './' works for most cases, but specifically for GitHub Pages custom domains or project pages,
+    // ensure this matches your repository usage.
     base: './', 
     define: {
       // Map the build-time environment variable to process.env.API_KEY
@@ -20,6 +21,8 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
+      // Ensure empty output directory before build
+      emptyOutDir: true,
     }
   };
 });

@@ -28,7 +28,7 @@ jobs:
           cache: 'npm'
           
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm ci
         
       - name: Build
         run: npm run build
@@ -36,6 +36,11 @@ jobs:
           # Map secret GEMINI_API_KEY to VITE_API_KEY for Vite build
           VITE_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          
+      # Critical for generic SPAs on GitHub Pages: disable Jekyll processing
+      # This prevents internal files (starting with _) from being ignored
+      - name: Add .nojekyll file
+        run: touch dist/.nojekyll
           
       - name: Verify Build Output
         run: |

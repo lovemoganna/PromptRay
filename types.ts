@@ -27,9 +27,22 @@ export interface PromptConfig {
     topK?: number;
 }
 
+export type ExampleMode = 'independent' | 'iterative'; // 独立新增 | 多轮迭代
+
 export interface Example {
     input: string;
     output: string;
+    mode?: ExampleMode; // 示例模式：独立新增（默认）或 多轮迭代
+    iterationIndex?: number; // 迭代序号（仅多轮模式有效，从0开始）
+    previousOutput?: string; // 上一轮输出（仅多轮模式有效，用于展示迭代过程）
+}
+
+export interface ExamplesHistory {
+    id: string;
+    timestamp: number;
+    examples: Example[];
+    name?: string;
+    description?: string;
 }
 
 export interface PromptVersion {
@@ -48,6 +61,12 @@ export interface SavedRun {
     inputValues: Record<string, string>;
     output: string;
     rating?: 'good' | 'bad'; // New field for quality feedback
+    name?: string; // 测试用例名称
+    description?: string; // 测试用例描述
+    checkpoint?: string; // 断点位置（用于续跑）
+    isCheckpoint?: boolean; // 是否为断点
+    config?: PromptConfig; // 保存时的配置
+    partialOutput?: string; // 部分输出（用于续跑）
 }
 
 export type PromptStatus = 'draft' | 'active' | 'archived';

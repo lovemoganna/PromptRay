@@ -262,7 +262,7 @@ export const optimizePromptContent = async (originalText: string, type: 'prompt'
         Original Text:
         ${originalText}`;
 
-        const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        const model = ai.getGenerativeModel({ model: DEFAULT_MODEL });
         
         // Create timeout promise
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -315,7 +315,7 @@ export const generateSampleVariables = async (promptText: string, variables: str
 
     try {
         const model = ai.getGenerativeModel({ 
-            model: 'gemini-2.5-flash',
+            model: DEFAULT_MODEL,
             generationConfig: {
                 responseMimeType: "application/json"
             }
@@ -371,7 +371,7 @@ export const generateTags = async (title: string, description: string, content: 
 
     try {
         const model = ai.getGenerativeModel({ 
-            model: 'gemini-2.5-flash',
+            model: DEFAULT_MODEL,
             generationConfig: {
                 responseMimeType: "application/json"
             }
@@ -451,7 +451,7 @@ ${content || '(无)'}
 
     try {
         const model = ai.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: DEFAULT_MODEL,
             generationConfig: {
                 responseMimeType: "application/json"
             }
@@ -536,7 +536,7 @@ Return ONLY the translated English prompt, nothing else.`;
 
     try {
         const model = ai.getGenerativeModel({ 
-            model: 'gemini-2.5-flash',
+            model: DEFAULT_MODEL,
             generationConfig: {
                 temperature: 0.3,
                 maxOutputTokens: 2000

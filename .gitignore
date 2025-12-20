@@ -7,7 +7,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build Output
 dist
 dist-ssr
 *.local
@@ -34,8 +39,8 @@ dist-ssr
 .env.*
 !.env.example
 
-# Output / misc
-coverage
-*.tsbuildinfo
-.DS_Store
-Thumbs.db
+# OS / System
+thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

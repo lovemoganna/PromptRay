@@ -266,170 +266,166 @@ ${existingCount > 0 ? `已有示例（供参考，避免重复）：\n${existing
       let parsed: any = null;
       let newExample: { input: string; output: string } | null = null;
 
-      // 策略1: 尝试提取markdown代码块中的JSON（改进：支持多行和嵌套）
-      // 匹配 ```json ... ``` 或 ``` ... ``` 格式，使用非贪婪匹配以处理嵌套大括号
+      // 提取 JSON 的辅助函数
+      const extractJSON = (text: string): any => {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return null;
+        }
+      };
+
+      // 策略1: 尝试提取markdown代码块中的JSON
       const codeBlockPattern = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/;
-      let codeBlockMatch = raw.match(codeBlockPattern);
-
-      // 如果第一次匹配失败，尝试更宽松的匹配（允许代码块中有换行和更多内容）
-      if (!codeBlockMatch) {
-        const relaxedPattern = /```(?:json)?\s*([\s\S]*?)\s*```/;
-        const relaxedMatch = raw.match(relaxedPattern);
-        if (relaxedMatch && relaxedMatch[1]) {
-          // 尝试从匹配的内容中提取JSON对象（找到第一个 { 到最后一个 }）
-          const jsonStart = relaxedMatch[1].indexOf('{');
-          const jsonEnd = relaxedMatch[1].lastIndexOf('}');
-          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-            codeBlockMatch = [relaxedMatch[0], relaxedMatch[1].slice(jsonStart, jsonEnd + 1)];
-          }
-        }
+      let match = raw.match(codeBlockPattern);
+      if (match && match[1]) {
+        parsed = extractJSON(match[1]);
       }
 
-      if (codeBlockMatch && codeBlockMatch[1]) {
-        try {
-          // 清理可能的额外空白字符
-          const jsonText = codeBlockMatch[1].trim();
-          parsed = JSON.parse(jsonText);
-        } catch (e) {
-          // 如果直接解析失败，尝试提取更精确的范围
-          const firstBrace = codeBlockMatch[1].indexOf('{');
-          const lastBrace = codeBlockMatch[1].lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            try {
-              parsed = JSON.parse(codeBlockMatch[1].slice(firstBrace, lastBrace + 1));
-            } catch (e2) {
-              // 继续尝试其他策略
-            }
-          }
-        }
-      }
-
-      // 策略2: 尝试提取第一个完整的JSON对象
+      // 策略2: 如果提取失败，尝试查找最外层的 {}
       if (!parsed) {
-        try {
-          // 找到第一个 { 和最后一个 }
-          const firstBrace = raw.indexOf('{');
-          const lastBrace = raw.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            const jsonText = raw.slice(firstBrace, lastBrace + 1);
-            parsed = JSON.parse(jsonText);
+        const firstBrace = raw.indexOf('{');
+        const lastBrace = raw.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          const candidate = raw.slice(firstBrace, lastBrace + 1);
+          parsed = extractJSON(candidate);
+
+          // 如果直接解析失败，尝试清理后解析 (例如处理由换行符引起的问题)
+          if (!parsed) {
+            // 简单的清理：移除可能导致问题的控制字符，但保留换行
+            // 这里主要针对 LLM 可能输出的不规范 JSON
+            // 尝试简单的替换：将实际换行符替换为 \n 字符，但这需要小心不破坏已经是 \n 的字符
+            // 现阶段暂不进行激进替换，而是依赖后续的正则提取
           }
-        } catch (e) {
-          // 继续尝试其他策略
         }
       }
 
-      // 策略3: 尝试使用正则提取input和output字段（支持多行字符串和特殊字符）
+      // 策略3: 更加鲁棒的正则提取 (手动解析键值对)
+      // 这可以处理 JSON 格式错误但内容清晰的情况
       if (!parsed) {
-        // 改进的正则：支持多行字符串、转义字符、以及可能的换行
-        // 匹配 "input": "..." 或 "input": ```...```
-        const inputPattern = /"input"\s*:\s*"((?:[^"\\]|\\.|\\n|\\r|\\t)*)"|"input"\s*:\s*```([\s\S]*?)```|"input"\s*:\s*'([^']*)'/;
-        const outputPattern = /"output"\s*:\s*"((?:[^"\\]|\\.|\\n|\\r|\\t)*)"|"output"\s*:\s*```([\s\S]*?)```|"output"\s*:\s*'([^']*)'/;
+        // 查找 "input": "..." 模式，支持跨行和转义引号
+        // 使用针对性的正则来分别提取 input 和 output
 
-        const inputMatch = raw.match(inputPattern);
-        const outputMatch = raw.match(outputPattern);
+        // 使用之前的正则逻辑，但进行增强
+        // 匹配 "input": "..."，非贪婪匹配到下一个 "output" 键或结束
+        const inputRegex = /"input"\s*:\s*"((?:[^"\\]|\\.)*)"/i;
+        const outputRegex = /"output"\s*:\s*"((?:[^"\\]|\\.)*)"/i;
 
-        if (inputMatch && outputMatch) {
-          // 提取值，支持多种格式
-          let inputValue = inputMatch[1] || inputMatch[2] || inputMatch[3] || '';
-          let outputValue = outputMatch[1] || outputMatch[2] || outputMatch[3] || '';
+        // 如果标准的正则失败（通常是因为包含未转义的换行），尝试更激进的提取
+        // 查找 "input": " 开头，直到遇到 ", (逗号) 或 "} (结束) 或 "output":
+        // 这处理了 LLM 在字符串中直接使用换行符的情况 (Invalid JSON but readable)
 
-          // 处理转义字符
-          inputValue = inputValue
-            .replace(/\\n/g, '\n')
-            .replace(/\\r/g, '\r')
-            .replace(/\\t/g, '\t')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
-          outputValue = outputValue
-            .replace(/\\n/g, '\n')
-            .replace(/\\r/g, '\r')
-            .replace(/\\t/g, '\t')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
+        let inputValue = '';
+        let outputValue = '';
 
-          if (inputValue && outputValue) {
-            newExample = {
-              input: inputValue.trim(),
-              output: outputValue.trim(),
-            };
-          }
+        // 提取 Output (通常 Output 内容较多，容易出错)
+        // 寻找 "output": " ... (直到遇到 ", 或 "})
+        // 这是一个危险的正则，因为它依赖于后续结构的特征
+        const messyOutputRegex = /"output"\s*:\s*"([\s\S]*?)(?="\s*[,}])/i;
+        const messyOutputMatch = raw.match(messyOutputRegex);
+        if (messyOutputMatch) {
+          outputValue = messyOutputMatch[1];
+        } else {
+          const m = raw.match(outputRegex);
+          if (m) outputValue = m[1];
         }
-      }
 
-      // 策略4: 如果已解析JSON，提取数据
-      if (!newExample && parsed) {
-        if (parsed.input && parsed.output) {
-          // 单个对象格式
+        // 提取 Input
+        const messyInputRegex = /"input"\s*:\s*"([\s\S]*?)(?="\s*[,}])/i;
+        const messyInputMatch = raw.match(messyInputRegex);
+        if (messyInputMatch) {
+          inputValue = messyInputMatch[1];
+        } else {
+          const m = raw.match(inputRegex);
+          if (m) inputValue = m[1];
+        }
+
+        if (inputValue && outputValue) {
           newExample = {
-            input: String(parsed.input).trim(),
-            output: String(parsed.output).trim(),
+            input: inputValue.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+            output: outputValue.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
           };
-        } else if (Array.isArray(parsed.examples) && parsed.examples.length > 0) {
-          // 数组格式（兼容旧格式）
-          const first = parsed.examples[0];
-          if (first?.input && first?.output) {
-            newExample = {
-              input: String(first.input).trim(),
-              output: String(first.output).trim(),
-            };
-          }
         }
       }
 
-      // 策略4.5: 如果JSON解析成功但字段名不匹配，尝试查找任何包含input/output的对象
-      if (!newExample && parsed && typeof parsed === 'object') {
-        // 查找可能的input/output字段（不区分大小写）
+      // 策略4: 从已解析JSON提取
+      if (!newExample && parsed) {
+        // 规范化键名 (忽略大小写)
         const keys = Object.keys(parsed);
         const inputKey = keys.find(k => k.toLowerCase() === 'input');
         const outputKey = keys.find(k => k.toLowerCase() === 'output');
+
         if (inputKey && outputKey && parsed[inputKey] && parsed[outputKey]) {
           newExample = {
             input: String(parsed[inputKey]).trim(),
             output: String(parsed[outputKey]).trim(),
           };
+        } else if (parsed.examples && Array.isArray(parsed.examples) && parsed.examples[0]) {
+          // 兼容 { examples: [...] } 格式
+          const first = parsed.examples[0];
+          if (first.input && first.output) {
+            newExample = {
+              input: String(first.input).trim(),
+              output: String(first.output).trim()
+            };
+          }
         }
       }
 
-      // 策略5: 尝试从纯文本中提取（最后的手段）
+      // 策略5: 纯文本回退 (即使 JSON 解析完全失败)
       if (!newExample) {
-        // 尝试查找类似 "input": "..." 或 input: "..." 的模式
+        // 简单的行匹配
         const lines = raw.split('\n');
-        let foundInput = '';
-        let foundOutput = '';
+        let currentField: 'input' | 'output' | null = null;
+        let inputBuf = [];
+        let outputBuf = [];
 
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          // 匹配 input 字段
-          if (!foundInput && (line.includes('input') || line.includes('输入'))) {
-            const match = line.match(/(?:input|输入)[:：]\s*["'`](.*?)["'`]/);
-            if (match && match[1]) {
-              foundInput = match[1];
+        for (const line of lines) {
+          if (line.match(/"?input"?\s*[:：]/i)) {
+            currentField = 'input';
+            const content = line.replace(/.*"?input"?\s*[:：]\s*"/i, '').replace(/",?$/, '');
+            inputBuf.push(content);
+          } else if (line.match(/"?output"?\s*[:：]/i)) {
+            currentField = 'output';
+            const content = line.replace(/.*"?output"?\s*[:：]\s*"/i, '').replace(/",?$/, '');
+            outputBuf.push(content);
+          } else if (currentField === 'input') {
+            // 如果遇到 output 关键字，停止 input 收集
+            if (line.match(/"?output"?\s*[:：]/i)) {
+              currentField = 'output';
+              const content = line.replace(/.*"?output"?\s*[:：]\s*"/i, '').replace(/",?$/, '');
+              outputBuf.push(content);
+            } else {
+              inputBuf.push(line.replace(/",?$/, '').replace(/},?$/, ''));
             }
-          }
-          // 匹配 output 字段
-          if (!foundOutput && (line.includes('output') || line.includes('输出'))) {
-            const match = line.match(/(?:output|输出)[:：]\s*["'`](.*?)["'`]/);
-            if (match && match[1]) {
-              foundOutput = match[1];
+          } else if (currentField === 'output') {
+            // 如果遇到 } 或 ``` 结束
+            if (line.trim() === '}' || line.trim() === '```') {
+              currentField = null;
+            } else {
+              outputBuf.push(line.replace(/",?$/, '').replace(/},?$/, ''));
             }
           }
         }
 
-        if (foundInput && foundOutput) {
+        if (inputBuf.length > 0 && outputBuf.length > 0) {
+          // 清理首尾引号
+          const clean = (arr: string[]) => {
+            let s = arr.join('\n').trim();
+            if (s.startsWith('"')) s = s.slice(1);
+            if (s.endsWith('"')) s = s.slice(0, -1);
+            return s;
+          };
           newExample = {
-            input: foundInput.trim(),
-            output: foundOutput.trim(),
+            input: clean(inputBuf),
+            output: clean(outputBuf)
           };
         }
       }
 
-      // 如果所有策略都失败，记录详细错误信息
       if (!newExample || !newExample.input || !newExample.output) {
         console.error('JSON解析失败 - 原始响应:', raw);
         console.error('解析后的对象:', parsed);
-        console.error('提取的示例:', newExample);
-
         // 提供更友好的错误信息，包含原始响应的前200个字符
         const preview = raw.length > 200 ? raw.substring(0, 200) + '...' : raw;
         throw new Error(

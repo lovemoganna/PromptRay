@@ -56,8 +56,11 @@ describe('PromptMetaPanel extracted perspective', () => {
     expect(screen.getByLabelText(/意图/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/目标受众/i)).toBeInTheDocument();
 
-    // Constraints tags rendered
-    expect(screen.getByText('不超过200字')).toBeInTheDocument();
+    // Constraints tags rendered (may appear also in suggestions, so accept multiple)
+    const matches = screen.getAllByText('不超过200字');
+    expect(matches.length).toBeGreaterThanOrEqual(1);
+    // ensure at least one occurrence is rendered as a tag (inside a span)
+    expect(matches.some(m => m.closest('span'))).toBeTruthy();
     expect(screen.getByText('避免专业术语')).toBeInTheDocument();
   });
 

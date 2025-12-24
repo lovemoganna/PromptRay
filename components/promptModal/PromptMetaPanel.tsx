@@ -87,8 +87,9 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = ({
             </label>
             <div className="space-y-2">
               <div>
-                <label className="text-[11px] text-gray-400">意图（Intent）</label>
+                <label htmlFor="extracted-intent" className="text-[11px] text-gray-400">意图（Intent）</label>
                 <textarea
+                  id="extracted-intent"
                   value={(formData.extracted && formData.extracted.intent) || ''}
                   onChange={e => onFormDataChange({ ...formData, extracted: { ...(formData.extracted || {}), intent: e.target.value } })}
                   className="w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200"
@@ -96,8 +97,9 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = ({
                 />
               </div>
               <div>
-                <label className="text-[11px] text-gray-400">目标受众（Audience）</label>
+                <label htmlFor="extracted-audience" className="text-[11px] text-gray-400">目标受众（Audience）</label>
                 <input
+                  id="extracted-audience"
                   type="text"
                   value={(formData.extracted && formData.extracted.audience) || ''}
                   onChange={e => onFormDataChange({ ...formData, extracted: { ...(formData.extracted || {}), audience: e.target.value } })}

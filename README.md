@@ -4,7 +4,7 @@
 
 # CI status
 
-# [![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+# [![CI](https://github.com/lovemoganna/promptray/actions/workflows/ci.yml/badge.svg)](https://github.com/lovemoganna/promptray/actions/workflows/ci.yml)
 
 # Prompt Ray — Prompt authoring & metadata toolbox
 
@@ -88,11 +88,7 @@ Contributions are welcome. Suggested workflow:
 
 ## CI / GitHub Actions
 
-The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` that runs `npm ci` and `npm test` for pushes and PRs to `main`/`master`. Replace the badge `OWNER/REPO` in the top section with your repository information to enable the status badge:
-
-```
-[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
-```
+The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` that runs `npm ci` and `npm test` for pushes and PRs to `main`/`master`. The CI badge above links to this workflow for `lovemoganna/promptray`.
 
 ## License
 

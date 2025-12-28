@@ -1288,23 +1288,9 @@ const App: React.FC = () => {
 
                         {/* Enhanced Model Selection Section - Mobile Optimized */}
                         <div className="p-4 sm:p-8">
-                            <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-                                <div className="relative">
-                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-indigo-500/25 to-purple-500/25 rounded-lg sm:rounded-xl flex items-center justify-center border border-indigo-400/40 shadow-lg shadow-indigo-500/20">
-                                        <Icons.Settings size={16} className="sm:w-5 sm:h-5 text-indigo-300 drop-shadow-sm" />
-                                    </div>
-                                    {/* Subtle glow */}
-                                    <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-indigo-400/20 animate-pulse opacity-50"></div>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <h2 className="text-lg sm:text-2xl font-bold text-white tracking-wide truncate">选择新模型</h2>
-                                    <p className="text-xs sm:text-sm text-gray-400 font-medium mt-0.5 sm:mt-1 hidden sm:block">探索更多AI模型，发现最佳创作伙伴</p>
-                                    <p className="text-xs text-gray-400 font-medium mt-0.5 sm:hidden">探索更多AI模型</p>
-                                </div>
-                            </div>
 
                             {/* Enhanced Model Selector Container with focus feedback - Mobile Optimized */}
-                            <div className={`relative bg-gradient-to-br from-gray-800/40 via-slate-800/35 to-gray-800/40 border rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl backdrop-blur-sm overflow-hidden transition-all duration-300 ${
+                            <div className={`relative bg-gradient-to-br from-gray-800/40 via-slate-800/35 to-gray-800/40 border rounded-2xl sm:rounded-3xl pt-2 sm:pt-4 p-4 sm:p-8 shadow-2xl backdrop-blur-sm overflow-hidden transition-all duration-300 ${
                                 modelSelectorFocusMode === 'selection'
                                     ? 'border-blue-400/50 ring-2 ring-blue-400/20 shadow-blue-500/30'
                                     : 'border-white/10'

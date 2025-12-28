@@ -1211,116 +1211,77 @@ const App: React.FC = () => {
 
                     {/* Enhanced Content - Improved visual hierarchy and spacing */}
                     <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
-                        {/* Selection Overview - Enhanced mobile-first design */}
-                        <div className={`p-4 sm:p-8 pb-4 sm:pb-6 border-b bg-gradient-to-b from-white/5 to-transparent transition-all duration-300 ${
-                            modelSelectorFocusMode === 'overview'
-                                ? 'border-violet-400/50 bg-gradient-to-b from-violet-500/10 to-transparent ring-2 ring-violet-400/20'
-                                : 'border-white/10'
-                        }`}>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-                                {/* Enhanced Default Selection Card */}
-                                <div className="group relative bg-gradient-to-br from-amber-500/15 via-yellow-500/10 to-orange-500/15 border border-amber-400/30 rounded-2xl p-6 shadow-2xl shadow-amber-500/20 backdrop-blur-sm overflow-hidden hover:shadow-amber-500/30 transition-all duration-500">
-                                    {/* Animated background overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/5 to-orange-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-yellow-400/10 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
-
-                                    <div className="relative flex items-center gap-4 mb-4">
-                                        <div className="relative">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-amber-400/30 to-yellow-400/30 rounded-xl flex items-center justify-center border border-amber-400/50 shadow-lg shadow-amber-400/20">
-                                                <Icons.Star size={18} className="text-amber-300 drop-shadow-sm" />
+                            {/* Compact Selection Overview */}
+                            <div className={`px-4 py-3 sm:px-6 sm:py-4 border-b bg-gradient-to-b from-white/3 to-transparent transition-all duration-300 ${
+                                modelSelectorFocusMode === 'overview'
+                                    ? 'border-violet-400/40 bg-gradient-to-b from-violet-500/8 to-transparent'
+                                    : 'border-white/8'
+                            }`}>
+                                {/* Ultra-compact horizontal layout */}
+                                <div className="flex gap-3 sm:gap-4">
+                                    {/* Default Recommendation - Compact */}
+                                    <div className="flex-1 group relative bg-gradient-to-br from-amber-500/10 via-yellow-500/8 to-orange-500/10 border border-amber-400/25 rounded-xl p-3 sm:p-4 shadow-lg shadow-amber-500/15 backdrop-blur-sm overflow-hidden hover:shadow-amber-500/25 transition-all duration-300 cursor-pointer">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="relative">
+                                                <div className="w-6 h-6 bg-gradient-to-br from-amber-400/25 to-yellow-400/25 rounded-lg flex items-center justify-center border border-amber-400/40">
+                                                    <Icons.Star size={12} className="text-amber-300" />
+                                                </div>
                                             </div>
-                                            {/* Sparkle effect */}
-                                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-300 rounded-full animate-ping opacity-60"></div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-bold text-white truncate">默认推荐</div>
+                                                <div className="text-xs text-amber-200/80 font-medium">openai/gpt-oss-120b</div>
+                                            </div>
+                                            <div className="text-xs px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-200 border border-purple-400/30 font-medium">
+                                                ⚡ GROQ
+                                            </div>
                                         </div>
-                                        <h3 className="text-xl font-bold text-white tracking-wide">默认推荐</h3>
+                                        <div className="text-xs text-gray-300 leading-tight">
+                                            超快推理 + 官方品质
+                                        </div>
                                     </div>
 
-                                    <div className="relative flex items-center gap-5">
-                                        <div className="relative group">
-                                            <div className="w-14 h-14 bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-2xl flex items-center justify-center border-2 border-purple-400/60 shadow-xl shadow-purple-500/30 backdrop-blur-sm">
-                                                <Icons.Chip size={24} className="text-purple-300 drop-shadow-lg" />
-                                            </div>
-                                            {/* Enhanced status indicator */}
-                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-emerald-400 to-green-400 rounded-full border-3 border-gray-900 animate-pulse shadow-emerald-400/90 shadow-[0_0_12px] ring-2 ring-emerald-400/40"></div>
-                                            {/* Pulse ring */}
-                                            <div className="absolute inset-0 rounded-2xl border-2 border-purple-400/30 animate-ping opacity-20"></div>
-                                        </div>
-                                        <div className="flex-1 space-y-2">
-                                            <div className="flex items-center gap-3 flex-wrap">
-                                                <span className="text-xl font-black text-white tracking-wide">
-                                                    openai/gpt-oss-120b
-                                                </span>
-                                                <span className="px-3 py-1 rounded-full text-sm font-bold bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-200 border border-purple-400/40 shadow-lg">
-                                                    GROQ 推荐
-                                                </span>
-                                            </div>
-                                            <p className="text-base text-gray-300 leading-relaxed font-medium">
-                                                ⚡ 超快推理速度 + 🎯 官方模型品质
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Enhanced Current Selection Card */}
-                                <div className="group relative bg-gradient-to-br from-slate-800/60 via-gray-800/50 to-slate-800/60 border border-white/20 rounded-2xl p-6 shadow-2xl shadow-blue-500/10 backdrop-blur-sm overflow-hidden hover:shadow-blue-500/20 transition-all duration-500">
-                                    {/* Subtle animated overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                                    <div className="relative flex items-center gap-4 mb-4">
-                                        <div className="relative">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500/30 to-cyan-500/30 rounded-xl flex items-center justify-center border border-blue-400/50 shadow-lg shadow-blue-400/20">
-                                                <Icons.CheckCircle size={18} className="text-blue-300 drop-shadow-sm" />
-                                            </div>
-                                            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-400 rounded-full animate-pulse opacity-80"></div>
-                                        </div>
-                                        <h3 className="text-xl font-bold text-white tracking-wide">当前选择</h3>
-                                    </div>
-
-                                    <div className="relative flex items-center gap-5">
-                                        <div className={`relative group w-14 h-14 rounded-2xl flex items-center justify-center border-2 shadow-xl backdrop-blur-sm ${
-                                            selectedProvider === 'auto' ? 'bg-gradient-to-br from-yellow-500/30 to-amber-500/30 border-yellow-400/60 shadow-yellow-500/30' :
-                                            selectedProvider === 'gemini' ? 'bg-gradient-to-br from-blue-500/30 to-cyan-500/30 border-blue-400/60 shadow-blue-500/30' :
-                                            selectedProvider === 'groq' ? 'bg-gradient-to-br from-purple-500/30 to-pink-500/30 border-purple-400/60 shadow-purple-500/30' :
-                                            'bg-gradient-to-br from-green-500/30 to-emerald-500/30 border-green-400/60 shadow-green-500/30'
-                                        }`}>
-                                            <Icons.Chip size={24} className={`drop-shadow-lg ${
-                                                selectedProvider === 'auto' ? 'text-yellow-300' :
-                                                selectedProvider === 'gemini' ? 'text-blue-300' :
-                                                selectedProvider === 'groq' ? 'text-purple-300' :
-                                                'text-green-300'
-                                            }`} />
-                                            {/* Enhanced status indicator */}
-                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-emerald-400 to-green-400 rounded-full border-3 border-gray-900 animate-pulse shadow-emerald-400/90 shadow-[0_0_12px] ring-2 ring-emerald-400/40"></div>
-                                            {/* Pulse ring */}
-                                            <div className="absolute inset-0 rounded-2xl border-2 border-current opacity-20 animate-ping"></div>
-                                        </div>
-                                        <div className="flex-1 space-y-2">
-                                            <div className="flex items-center gap-3 flex-wrap">
-                                                <span className="text-xl font-black text-white tracking-wide">
-                                                    {selectedModel || '默认模型'}
-                                                </span>
-                                                <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-lg ${
-                                                    selectedProvider === 'auto' ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-200 border border-yellow-400/40' :
-                                                    selectedProvider === 'gemini' ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-200 border border-blue-400/40' :
-                                                    selectedProvider === 'groq' ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-200 border border-purple-400/40' :
-                                                    'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-200 border border-green-400/40'
+                                    {/* Current Selection - Compact */}
+                                    <div className="flex-1 group relative bg-gradient-to-br from-slate-800/50 via-gray-800/40 to-slate-800/50 border border-white/15 rounded-xl p-3 sm:p-4 shadow-lg shadow-blue-500/8 backdrop-blur-sm overflow-hidden hover:shadow-blue-500/15 transition-all duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="relative">
+                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 shadow-sm ${
+                                                    selectedProvider === 'auto' ? 'bg-gradient-to-br from-yellow-500/25 to-amber-500/25 border-yellow-400/50' :
+                                                    selectedProvider === 'gemini' ? 'bg-gradient-to-br from-blue-500/25 to-cyan-500/25 border-blue-400/50' :
+                                                    selectedProvider === 'groq' ? 'bg-gradient-to-br from-purple-500/25 to-pink-500/25 border-purple-400/50' :
+                                                    'bg-gradient-to-br from-green-500/25 to-emerald-500/25 border-green-400/50'
                                                 }`}>
-                                                    {selectedProvider === 'auto' ? '🤖 AUTO' :
-                                                     selectedProvider === 'gemini' ? '🎯 GEMINI' :
-                                                     selectedProvider === 'groq' ? '⚡ GROQ' :
-                                                     '🏆 OPENAI'}
-                                                </span>
+                                                    <Icons.Chip size={12} className={`${
+                                                        selectedProvider === 'auto' ? 'text-yellow-300' :
+                                                        selectedProvider === 'gemini' ? 'text-blue-300' :
+                                                        selectedProvider === 'groq' ? 'text-purple-300' :
+                                                        'text-green-300'
+                                                    }`} />
+                                                </div>
                                             </div>
-                                            <p className="text-base text-gray-300 leading-relaxed font-medium">
-                                                {selectedProvider === 'auto' ? '🤖 智能自动选择最优模型，提升创作效率' :
-                                                 selectedProvider === 'gemini' ? '🎯 Google Gemini 系列，平衡性能与成本' :
-                                                 selectedProvider === 'groq' ? '⚡ 超快推理，适合实时交互场景' :
-                                                 '🏆 OpenAI 官方模型，业界标准品质'}
-                                            </p>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-bold text-white truncate">当前选择</div>
+                                                <div className="text-xs text-gray-300 truncate">{selectedModel || '默认模型'}</div>
+                                            </div>
+                                            <div className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                                selectedProvider === 'auto' ? 'bg-yellow-500/15 text-yellow-200 border border-yellow-400/30' :
+                                                selectedProvider === 'gemini' ? 'bg-blue-500/15 text-blue-200 border border-blue-400/30' :
+                                                selectedProvider === 'groq' ? 'bg-purple-500/15 text-purple-200 border border-purple-400/30' :
+                                                'bg-green-500/15 text-green-200 border border-green-400/30'
+                                            }`}>
+                                                {selectedProvider === 'auto' ? '🤖 AUTO' :
+                                                 selectedProvider === 'gemini' ? '🎯 GEMINI' :
+                                                 selectedProvider === 'groq' ? '⚡ GROQ' :
+                                                 '🏆 OPENAI'}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-gray-400 leading-tight">
+                                            {selectedProvider === 'auto' ? '智能自动选择' :
+                                             selectedProvider === 'gemini' ? '多模态支持' :
+                                             selectedProvider === 'groq' ? '超快推理' :
+                                             '业界标准'}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
                             {/* Enhanced Quick Actions Bar */}
                             <div className="flex items-center justify-center gap-4 pt-2">

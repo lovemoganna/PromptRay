@@ -1,306 +1,16 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 import { Icons } from './Icons';
 import { useDuckDBSync } from '../hooks/useDuckDBSync';
-import { runGeminiPrompt } from '../services/geminiService';
 import { FOUNDATION, LAYOUT, colors } from './ui/styleTokens';
 
-// 历史与收藏Tab组件
-const HistoryAndFavoritesTab: React.FC<{
-  history: SQLHistoryItem[];
-  favorites: FavoriteSQL[];
-  onExecuteQuery: (sql: string) => void;
-  onSwitchToWorkbench: () => void;
-  onAddToFavorites: (sql: string, name?: string) => void;
-  onUpdateFavoriteName: (id: string, name: string) => void;
-  onDeleteFavorite: (id: string) => void;
-}> = ({
-  history,
-  favorites,
-  onExecuteQuery,
-  onSwitchToWorkbench,
-  onAddToFavorites,
-  onUpdateFavoriteName,
-  onDeleteFavorite
-}) => {
-  const [activeSubTab, setActiveSubTab] = useState<'history' | 'favorites'>('history');
-
-  const formatTimestamp = useCallback((timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  }, []);
-
-  const formatExecutionTime = useCallback((ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
-  }, []);
-
-  const favoriteFromHistory = useCallback((historyItem: SQLHistoryItem) => {
-    onAddToFavorites(historyItem.executedSQL, `来自历史: ${historyItem.executedSQL.substring(0, 30)}...`);
-  }, [onAddToFavorites]);
-
-  return (
-    <div className="h-full flex flex-col">
-      {/* Sub-tabs */}
-      <div className="flex border-b border-white/5 bg-gray-900/30">
-        <button
-          onClick={() => setActiveSubTab('history')}
-          className={`flex-1 py-4 px-6 text-sm font-medium transition-all duration-200 border-b-2 flex items-center justify-center gap-2 ${
-            activeSubTab === 'history'
-              ? 'text-white bg-brand-500/20 border-brand-500'
-              : 'text-gray-400 hover:text-white border-transparent'
-          }`}
-        >
-          <Icons.History size={16} />
-          历史记录
-        </button>
-        <button
-          onClick={() => setActiveSubTab('favorites')}
-          className={`flex-1 py-4 px-6 text-sm font-medium transition-all duration-200 border-b-2 flex items-center justify-center gap-2 ${
-            activeSubTab === 'favorites'
-              ? 'text-white bg-brand-500/20 border-brand-500'
-              : 'text-gray-400 hover:text-white border-transparent'
-          }`}
-        >
-          <Icons.Star size={16} />
-          我的收藏
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {activeSubTab === 'history' ? (
-          <div className="divide-y divide-white/5">
-            {history.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">
-                <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Icons.History size={32} className="text-gray-600" />
-                </div>
-                <div className="text-lg font-medium mb-3">暂无执行历史</div>
-                <div className="text-sm text-gray-400 max-w-sm mx-auto">
-                  执行 SQL 查询后，历史记录将显示在这里。您可以查看、重新执行或收藏之前的查询。
-                </div>
-              </div>
-            ) : (
-              history.map((item) => (
-                <div key={item.id} className="p-6 hover:bg-white/5 transition-colors duration-200 group">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        item.success
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      }`}>
-                        {item.inputType === 'natural' ? '💬 自然语言' : '📝 SQL'}
-                      </span>
-                      <span className="text-xs text-gray-500 bg-gray-800/50 px-2 py-1 rounded">
-                        {formatTimestamp(item.timestamp)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <button
-                        onClick={() => {
-                          onExecuteQuery(item.executedSQL);
-                          onSwitchToWorkbench();
-                        }}
-                        className="text-gray-400 hover:text-white text-xs flex items-center gap-1 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-all duration-200"
-                      >
-                        <Icons.Play size={12} />
-                        执行
-                      </button>
-                      <button
-                        onClick={() => favoriteFromHistory(item)}
-                        className="text-gray-400 hover:text-yellow-400 text-xs flex items-center gap-1 px-3 py-1.5 bg-gray-700/50 hover:bg-yellow-700/50 rounded-lg transition-all duration-200"
-                      >
-                        <Icons.Star size={12} />
-                        收藏
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-300 mb-2 font-mono bg-gray-800/30 p-3 rounded-lg border border-white/5">
-                    {item.executedSQL.length > 120 ? `${item.executedSQL.substring(0, 120)}...` : item.executedSQL}
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    {item.resultCount !== undefined && (
-                      <span className="flex items-center gap-1">
-                        <Icons.Database size={12} />
-                        {item.resultCount} 行
-                      </span>
-                    )}
-                    {item.executionTime && (
-                      <span className="flex items-center gap-1">
-                        <Icons.Database size={12} />
-                        {formatExecutionTime(item.executionTime)}
-                      </span>
-                    )}
-                    {item.success ? (
-                      <span className="flex items-center gap-1 text-green-400">
-                        <Icons.Check size={12} />
-                        成功
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-red-400">
-                        <Icons.Error size={12} />
-                        失败
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <FavoritesSubTab
-            favorites={favorites}
-            onExecuteQuery={onExecuteQuery}
-            onSwitchToWorkbench={onSwitchToWorkbench}
-            onUpdateName={onUpdateFavoriteName}
-            onDelete={onDeleteFavorite}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
-
-// 收藏子Tab组件
-const FavoritesSubTab: React.FC<{
-  favorites: FavoriteSQL[];
-  onExecuteQuery: (sql: string) => void;
-  onSwitchToWorkbench: () => void;
-  onUpdateName: (id: string, name: string) => void;
-  onDelete: (id: string) => void;
-}> = ({ favorites, onExecuteQuery, onSwitchToWorkbench, onUpdateName, onDelete }) => {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-
-  const handleEditName = useCallback((favorite: FavoriteSQL) => {
-    setEditingId(favorite.id);
-    setEditingName(favorite.name);
-  }, []);
-
-  const handleSaveName = useCallback(() => {
-    if (editingId && editingName.trim()) {
-      onUpdateName(editingId, editingName.trim());
-    }
-    setEditingId(null);
-    setEditingName('');
-  }, [editingId, editingName, onUpdateName]);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingId(null);
-    setEditingName('');
-  }, []);
-
-  const formatTimestamp = useCallback((timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  }, []);
-
-  return (
-    <div className="divide-y divide-white/5">
-      {favorites.length === 0 ? (
-        <div className="p-12 text-center text-gray-500">
-          <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Icons.Star size={32} className="text-gray-600" />
-          </div>
-          <div className="text-lg font-medium mb-3">暂无收藏查询</div>
-          <div className="text-sm text-gray-400 max-w-sm mx-auto">
-            在 SQL 工作台中执行查询后，可以点击收藏按钮将常用的查询保存到这里。
-          </div>
-        </div>
-      ) : (
-        favorites.map((favorite) => (
-          <div key={favorite.id} className="p-6 hover:bg-white/5 transition-colors duration-200 group">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1 min-w-0">
-                {editingId === favorite.id ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveName();
-                        if (e.key === 'Escape') handleCancelEdit();
-                      }}
-                      className="flex-1 px-3 py-1 text-sm bg-gray-700/50 border border-brand-500/50 rounded text-white focus:outline-none focus:border-brand-500"
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleSaveName}
-                      className="px-2 py-1 text-xs bg-green-600 hover:bg-green-500 text-white rounded transition-colors"
-                    >
-                      保存
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="px-2 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-                    >
-                      取消
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 mb-2">
-                    <h4 className="text-sm font-medium text-white truncate">{favorite.name}</h4>
-                    <button
-                      onClick={() => handleEditName(favorite)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-opacity"
-                    >
-                      <Icons.Edit size={14} />
-                    </button>
-                  </div>
-                )}
-                <div className="text-xs text-gray-500 bg-gray-800/50 px-2 py-1 rounded inline-block">
-                  {formatTimestamp(favorite.createdAt)}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                <button
-                  onClick={() => {
-                    onExecuteQuery(favorite.sqlText);
-                    onSwitchToWorkbench();
-                  }}
-                  className="text-gray-400 hover:text-white text-xs flex items-center gap-1 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-all duration-200"
-                >
-                  <Icons.Play size={12} />
-                  执行
-                </button>
-                <button
-                  onClick={() => onDelete(favorite.id)}
-                  className="text-gray-400 hover:text-red-400 text-xs flex items-center gap-1 px-3 py-1.5 bg-gray-700/50 hover:bg-red-700/50 rounded-lg transition-all duration-200"
-                >
-                  <Icons.Trash size={12} />
-                  删除
-                </button>
-              </div>
-            </div>
-            <div className="text-sm text-gray-300 font-mono bg-gray-800/30 p-3 rounded-lg border border-white/5">
-              {favorite.sqlText.length > 150 ? `${favorite.sqlText.substring(0, 150)}...` : favorite.sqlText}
-            </div>
-            {favorite.tags && favorite.tags.length > 0 && (
-              <div className="flex items-center gap-2 mt-3">
-                {favorite.tags.map((tag, index) => (
-                  <span key={index} className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full border border-blue-500/30">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
-};
-
-// TAB类型
+// 类型定义
 type TabType = 'analysis' | 'workbench' | 'history';
-
-// 输入模式
-type InputMode = 'natural' | 'sql';
 
 // SQL 查询历史类型
 interface SQLHistoryItem {
   id: string;
-  inputType: InputMode;
+  inputType: 'natural' | 'sql';
   inputText: string;
   generatedSQL?: string;
   executedSQL: string;
@@ -332,6 +42,177 @@ interface SQLConsoleProps {
   className?: string;
   onClose?: () => void;
 }
+
+// 历史与收藏Tab组件
+const HistoryAndFavoritesTab: React.FC<{
+  history: SQLHistoryItem[];
+  favorites: FavoriteSQL[];
+  onExecuteQuery: (sql: string) => void;
+  onSwitchToWorkbench: () => void;
+  onAddToFavorites: (sql: string, name?: string) => void;
+  onDeleteFavorite: (id: string) => void;
+}> = ({
+  history,
+  favorites,
+  onExecuteQuery,
+  onSwitchToWorkbench,
+  onAddToFavorites,
+  onDeleteFavorite
+}) => {
+  // Tab切换状态
+  const [activeSubTab, setActiveSubTab] = useState<'history' | 'favorites'>('history');
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* 子Tab导航 */}
+      <div className="bg-gray-900/60 border-b border-white/5 flex-shrink-0">
+        <div className="flex">
+          {[
+            { id: 'history' as const, label: '执行历史', icon: Icons.History },
+            { id: 'favorites' as const, label: 'SQL收藏', icon: Icons.Star }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 text-sm font-medium transition-all duration-200 border-b-2 ${
+                activeSubTab === tab.id
+                  ? 'text-white bg-brand-500/20 border-brand-500 shadow-sm'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5 border-transparent'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 内容区域 */}
+      <div className="flex-1 overflow-auto p-4">
+        {activeSubTab === 'history' && (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-white mb-4">执行历史</h3>
+            {history.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <Icons.History size={48} className="text-gray-600 mx-auto mb-4" />
+                <div className="text-lg font-medium mb-2">暂无执行历史</div>
+                <div className="text-sm">执行 SQL 查询后将显示在这里</div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {history.slice(0, 20).map((item, index) => (
+                  <div key={index} className="bg-gray-800/50 border border-white/10 rounded-lg p-3 hover:bg-gray-700/50 transition-all duration-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white truncate mb-1">{item.executedSQL.substring(0, 80)}...</div>
+                        <div className="text-xs text-gray-400">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          item.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {item.success ? '成功' : '失败'}
+                        </span>
+                        <button
+                          onClick={() => onExecuteQuery(item.executedSQL)}
+                          className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-all duration-200"
+                          title="重新执行"
+                        >
+                          <Icons.Play size={14} />
+                        </button>
+                        <button
+                          onClick={() => onAddToFavorites(item.executedSQL)}
+                          className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-all duration-200"
+                          title="添加到收藏"
+                        >
+                          <Icons.Star size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSubTab === 'favorites' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">SQL收藏</h3>
+              <button
+                onClick={() => onSwitchToWorkbench()}
+                className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm rounded-lg transition-all duration-200"
+              >
+                添加收藏
+              </button>
+            </div>
+            {favorites.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                <Icons.Star size={48} className="text-gray-600 mx-auto mb-4" />
+                <div className="text-lg font-medium mb-2">暂无收藏</div>
+                <div className="text-sm">在工作台中将常用的 SQL 查询添加到收藏</div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {favorites.map((favorite) => (
+                  <div key={favorite.id} className="bg-gray-800/50 border border-white/10 rounded-lg p-3 hover:bg-gray-700/50 transition-all duration-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white mb-1">{favorite.name}</div>
+                        <div className="text-sm text-gray-300 truncate">{favorite.sqlText.substring(0, 100)}...</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {new Date(favorite.createdAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <button
+                          onClick={() => onExecuteQuery(favorite.sqlText)}
+                          className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-all duration-200"
+                          title="执行"
+                        >
+                          <Icons.Play size={14} />
+                        </button>
+                        <button
+                          onClick={() => onDeleteFavorite(favorite.id)}
+                          className="p-1 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-all duration-200"
+                          title="删除"
+                        >
+                          <Icons.Trash size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// 数据分析Tab组件
+const DataAnalysisTab: React.FC<{
+  onExecuteQuery: (sql: string) => void;
+  onSwitchToWorkbench: () => void;
+  onSaveAnalysisSession: (session: any) => void;
+}> = () => {
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-auto p-4">
+        <div className="text-center text-gray-500 py-8">
+          <Icons.Analysis size={48} className="text-gray-600 mx-auto mb-4" />
+          <div className="text-lg font-medium mb-2">数据分析功能</div>
+          <div className="text-sm">即将推出...</div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // SQL 语法高亮编辑器组件
 const SQLHighlightEditor: React.FC<{
@@ -433,347 +314,259 @@ const SQLHighlightEditor: React.FC<{
   );
 };
 
-// 数据分析会话类型
-interface AnalysisSession {
-  id: string;
-  fileName: string;
-  fileType: string;
-  aiResponse: string;
-  createdAt: number;
-}
+// =============================================================================
+// 数据表驱动的查询模板组件
+// =============================================================================
 
-// 数据分析Tab组件
-const DataAnalysisTab: React.FC<{
-  onExecuteQuery: (sql: string) => void;
-  onSwitchToWorkbench: () => void;
-  onSaveAnalysisSession: (session: AnalysisSession) => void;
-}> = ({ onExecuteQuery, onSwitchToWorkbench, onSaveAnalysisSession }) => {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [fileContent, setFileContent] = useState<string>('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const supportedFormats = ['.csv', '.xlsx', '.xls', '.json', '.md', '.txt'];
-
-  const handleFileSelect = useCallback((file: File) => {
-    if (!supportedFormats.some(format => file.name.toLowerCase().endsWith(format))) {
-      setError('不支持的文件格式。请上传 CSV、Excel、JSON 或 Markdown 文件。');
-      return;
-    }
-
-    setUploadedFile(file);
-    setError('');
-    setAnalysisResult('');
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setFileContent(content);
-    };
-    reader.readAsText(file);
-  }, [supportedFormats]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, [handleFileSelect]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
-
-  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, [handleFileSelect]);
-
-  const analyzeData = useCallback(async () => {
-    if (!uploadedFile || !fileContent) return;
-
-    setIsAnalyzing(true);
-    setError('');
-    setAnalysisResult('');
-
-    try {
-      const fileType = uploadedFile.name.split('.').pop()?.toLowerCase();
-
-      const analysisPrompt = `
-你是一位专业的数据分析师。请分析以下${fileType?.toUpperCase()}格式的数据文件内容，基于数据本身进行全面分析。
-
-数据文件信息：
-- 文件名: ${uploadedFile.name}
-- 文件类型: ${fileType}
-- 文件大小: ${(uploadedFile.size / 1024).toFixed(2)} KB
-
-数据内容预览（前1000字符）：
-${fileContent.substring(0, 1000)}${fileContent.length > 1000 ? '\n\n[数据内容较长，已截断显示]' : ''}
-
-请按照MECE原则（相互独立，完全穷尽），从以下维度进行数据分析：
-
-1. **数据结构分析**：描述数据的基本结构、字段类型、数据量级等
-2. **数据质量评估**：检查数据完整性、异常值、重复记录等
-3. **关键洞察发现**：识别数据中的重要模式、趋势或异常情况
-4. **业务价值建议**：基于数据特征提出可能的分析方向
-
-对于每个分析维度，请提供：
-【维度名称】
-
-解读：对关键数据特征进行分析，<总体结论>，反映<业务含义>，需关注<注意事项>
-
-说明：<自然语言描述这个分析维度包含什么>
-
-SQL建议：<具体的SQL查询语句，用于深入分析这个维度>
-
-请确保SQL语句符合SQLite/DuckDB语法，并且能够实际执行。
-`;
-
-      const result = await runGeminiPrompt(analysisPrompt, {
-        model: 'gemini-2.5-flash',
-        temperature: 0.3,
-        maxOutputTokens: 4000
-      });
-
-      setAnalysisResult(result);
-
-      // 保存分析会话
-      const session: AnalysisSession = {
-        id: `analysis_${Date.now()}`,
-        fileName: uploadedFile.name,
-        fileType: fileType || 'unknown',
-        aiResponse: result,
-        createdAt: Date.now()
-      };
-      onSaveAnalysisSession(session);
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '分析过程中发生错误';
-      setError(errorMessage);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [uploadedFile, fileContent, onSaveAnalysisSession]);
-
-  const executeSQLFromAnalysis = useCallback((sql: string) => {
-    onExecuteQuery(sql);
-    onSwitchToWorkbench();
-  }, [onExecuteQuery, onSwitchToWorkbench]);
-
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-6 border-b border-white/5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-            <Icons.Analysis size={20} className="text-purple-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-white">数据分析</h3>
-            <p className="text-sm text-gray-400">上传文件，AI 自动生成分析报告和 SQL</p>
-          </div>
-        </div>
-
-        {/* File Upload Area */}
-        <div
-          className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-brand-500/50 transition-colors duration-200 cursor-pointer"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={supportedFormats.join(',')}
-            onChange={handleFileInputChange}
-            className="hidden"
-          />
-          <div className="w-16 h-16 bg-brand-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Icons.Upload size={24} className="text-brand-400" />
-          </div>
-          <div className="text-white font-medium mb-2">
-            {uploadedFile ? `已选择: ${uploadedFile.name}` : '拖拽文件到此处或点击上传'}
-          </div>
-          <div className="text-sm text-gray-400 mb-4">
-            支持 CSV、Excel、JSON、Markdown 等格式
-          </div>
-          {!uploadedFile && (
-            <button className="px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-medium transition-colors duration-200">
-              选择文件
-            </button>
-          )}
-        </div>
-
-        {/* Supported Formats */}
-        <div className="mt-4 flex flex-wrap gap-2 justify-center">
-          {['CSV', 'Excel', 'JSON', 'Markdown'].map(format => (
-            <span key={format} className="px-3 py-1 bg-gray-800/50 text-gray-300 text-xs rounded-full border border-white/10">
-              {format}
-            </span>
-          ))}
-        </div>
-
-        {/* Analyze Button */}
-        {uploadedFile && fileContent && (
-          <div className="mt-6 flex justify-center">
-            <button
-              onClick={analyzeData}
-              disabled={isAnalyzing}
-              className="flex items-center gap-2 px-8 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 text-white rounded-lg font-medium transition-all duration-200 disabled:cursor-not-allowed"
-            >
-              {isAnalyzing ? (
-                <>
-                  <Icons.Loader size={16} className="animate-spin" />
-                  AI 分析中...
-                </>
-              ) : (
-                <>
-                  <Icons.Analysis size={16} />
-                  开始 AI 分析
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-auto">
-        {error && (
-          <div className="m-6 mb-0">
-            <div className="p-6 bg-red-900/20 border-l-4 border-red-500 rounded-r-lg">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center">
-                  <Icons.Error size={16} className="text-red-400" />
-                </div>
-                <span className="text-red-400 font-semibold text-lg">分析失败</span>
-              </div>
-              <div className="text-red-300 text-sm font-mono bg-red-900/10 p-4 rounded-lg border border-red-500/20">
-                {error}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {analysisResult && (
-          <div className="p-6">
-            <AnalysisResultDisplay
-              result={analysisResult}
-              onExecuteSQL={executeSQLFromAnalysis}
-            />
-          </div>
-        )}
-
-        {!uploadedFile && !error && (
-          <div className="p-6 text-center">
-            <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Icons.Analysis size={32} className="text-gray-600" />
-            </div>
-            <div className="text-gray-400 text-lg font-medium mb-3">AI 数据分析功能</div>
-            <div className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-              上传数据文件后，AI 将自动分析数据结构，生成专业的分析报告，并提供相应的 SQL 查询语句，帮助您快速理解和查询数据。
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// 分析结果展示组件
-const AnalysisResultDisplay: React.FC<{
-  result: string;
-  onExecuteSQL: (sql: string) => void;
-}> = ({ result, onExecuteSQL }) => {
-  const extractSQLBlocks = useCallback((text: string) => {
-    const sqlBlocks: { title: string; sql: string }[] = [];
-    const lines = text.split('\n');
-
-    let currentTitle = '';
-    let currentSQL = '';
-    let inSQLBlock = false;
-
-    for (const line of lines) {
-      if (line.startsWith('【') && line.includes('】')) {
-        if (currentTitle && currentSQL.trim()) {
-          sqlBlocks.push({ title: currentTitle, sql: currentSQL.trim() });
+// Prompts表模板
+const PromptsTableTemplates: React.FC<{
+  setQuery: (query: string) => void;
+}> = ({ setQuery }) => {
+  const templates = {
+    // 基础CRUD操作
+    crud: {
+      title: '📝 基础CRUD',
+      icon: Icons.Database,
+      items: [
+        {
+          name: '统计总数',
+          sql: 'SELECT COUNT(*) as total FROM prompts WHERE deletedAt IS NULL;',
+          desc: 'COUNT(*) FROM prompts'
+        },
+        {
+          name: '查看前5条',
+          sql: 'SELECT id, title, category, createdAt FROM prompts WHERE deletedAt IS NULL ORDER BY createdAt DESC LIMIT 5;',
+          desc: 'SELECT + LIMIT 5'
+        },
+        {
+          name: '新增记录',
+          sql: 'INSERT INTO prompts (id, title, content, description, category, isFavorite, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?);',
+          desc: 'INSERT INTO prompts'
+        },
+        {
+          name: '更新记录',
+          sql: 'UPDATE prompts SET title = ?, updatedAt = ? WHERE id = ? AND deletedAt IS NULL;',
+          desc: 'UPDATE prompts'
+        },
+        {
+          name: '软删除',
+          sql: 'UPDATE prompts SET deletedAt = ?, updatedAt = ? WHERE id = ?;',
+          desc: '软删除记录'
         }
-        currentTitle = line;
-        currentSQL = '';
-        inSQLBlock = false;
-      } else if (line.toLowerCase().includes('sql') && line.includes(':')) {
-        inSQLBlock = true;
-      } else if (inSQLBlock && (line.trim().startsWith('SELECT') || line.trim().startsWith('INSERT') || line.trim().startsWith('UPDATE') || line.trim().startsWith('DELETE'))) {
-        currentSQL += line + '\n';
-      } else if (inSQLBlock && line.trim() === '') {
-        // 空行可能表示SQL块结束
-        continue;
-      } else if (inSQLBlock && currentSQL) {
-        currentSQL += line + '\n';
-      }
+      ]
+    },
+    // 条件查询
+    conditions: {
+      title: '🔍 条件查询',
+      icon: Icons.Search,
+      items: [
+        {
+          name: '按分类筛选',
+          sql: 'SELECT * FROM prompts WHERE category = ? AND deletedAt IS NULL;',
+          desc: 'WHERE category = ?'
+        },
+        {
+          name: '收藏夹',
+          sql: 'SELECT * FROM prompts WHERE isFavorite = 1 AND deletedAt IS NULL;',
+          desc: 'WHERE isFavorite = 1'
+        },
+        {
+          name: '关键词搜索',
+          sql: 'SELECT * FROM prompts WHERE (title LIKE ? OR content LIKE ?) AND deletedAt IS NULL;',
+          desc: 'LIKE 模糊匹配'
+        },
+        {
+          name: '时间范围',
+          sql: 'SELECT * FROM prompts WHERE createdAt >= ? AND createdAt <= ? AND deletedAt IS NULL;',
+          desc: '时间范围查询'
+        },
+        {
+          name: '标签匹配',
+          sql: 'SELECT * FROM prompts WHERE tags LIKE ? AND deletedAt IS NULL;',
+          desc: 'JSON数组匹配'
+        }
+      ]
+    },
+    // 聚合分析
+    analytics: {
+      title: '📊 聚合分析',
+      icon: Icons.Analysis,
+      items: [
+        {
+          name: '分类统计',
+          sql: 'SELECT category, COUNT(*) as count FROM prompts WHERE deletedAt IS NULL GROUP BY category ORDER BY count DESC;',
+          desc: 'GROUP BY + COUNT'
+        },
+        {
+          name: '每日创建',
+          sql: 'SELECT DATE(createdAt) as date, COUNT(*) as count FROM prompts WHERE deletedAt IS NULL GROUP BY DATE(createdAt) ORDER BY date DESC;',
+          desc: '按日期聚合'
+        },
+        {
+          name: '最长内容',
+          sql: 'SELECT id, title, LENGTH(content) as content_length FROM prompts WHERE deletedAt IS NULL ORDER BY content_length DESC LIMIT 10;',
+          desc: 'LENGTH() 函数'
+        },
+        {
+          name: '标签分布',
+          sql: 'SELECT tags, COUNT(*) as count FROM prompts WHERE deletedAt IS NULL GROUP BY tags ORDER BY count DESC LIMIT 10;',
+          desc: '标签统计分析'
+        },
+        {
+          name: '收藏率',
+          sql: 'SELECT category, AVG(CASE WHEN isFavorite = 1 THEN 1 ELSE 0 END) as favorite_rate, COUNT(*) as total FROM prompts WHERE deletedAt IS NULL GROUP BY category;',
+          desc: '收藏率计算'
+        }
+      ]
+    },
+    // 高级查询
+    advanced: {
+      title: '🚀 高级查询',
+      icon: Icons.Code,
+      items: [
+        {
+          name: '窗口函数排名',
+          sql: 'SELECT id, title, category, createdAt, ROW_NUMBER() OVER (ORDER BY createdAt DESC) as rank FROM prompts WHERE deletedAt IS NULL;',
+          desc: 'ROW_NUMBER() 排名'
+        },
+        {
+          name: '子查询筛选',
+          sql: 'SELECT * FROM prompts WHERE category IN (SELECT category FROM prompts WHERE deletedAt IS NULL GROUP BY category HAVING COUNT(*) > 5) AND deletedAt IS NULL;',
+          desc: '子查询 + HAVING'
+        },
+        {
+          name: 'JSON提取',
+          sql: 'SELECT id, title, json_extract(config, \'$.model\') as model FROM prompts WHERE deletedAt IS NULL AND config IS NOT NULL;',
+          desc: 'JSON字段提取'
+        },
+        {
+          name: '全文搜索',
+          sql: 'SELECT * FROM prompts WHERE content LIKE ? OR title LIKE ? OR description LIKE ? AND deletedAt IS NULL;',
+          desc: '多字段搜索'
+        },
+        {
+          name: '数据完整性检查',
+          sql: 'SELECT * FROM prompts WHERE (title IS NULL OR title = \'\') OR (content IS NULL OR content = \'\') AND deletedAt IS NULL;',
+          desc: '数据质量检查'
+        }
+      ]
     }
-
-    if (currentTitle && currentSQL.trim()) {
-      sqlBlocks.push({ title: currentTitle, sql: currentSQL.trim() });
-    }
-
-    return sqlBlocks;
-  }, []);
-
-  const sqlBlocks = extractSQLBlocks(result);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
-          <Icons.Check size={16} className="text-green-400" />
-        </div>
-        <span className="text-green-400 font-semibold text-lg">分析完成</span>
-      </div>
-
-      {/* 分析报告文本 */}
-      <div className="bg-gray-800/30 border border-white/10 rounded-lg p-6">
-        <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
-          {result}
-        </pre>
-      </div>
-
-      {/* SQL 执行按钮组 */}
-      {sqlBlocks.length > 0 && (
-        <div className="space-y-4">
-          <h4 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Icons.Code size={20} className="text-brand-400" />
-            可执行的 SQL 查询
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {Object.entries(templates).map(([key, category]) => (
+        <div key={key} className="space-y-3">
+          <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
+            <category.icon size={16} />
+            {category.title}
           </h4>
-          {sqlBlocks.map((block, index) => (
-            <div key={index} className="bg-gray-800/50 border border-white/10 rounded-lg p-4">
-              <div className="flex items-start justify-between mb-3">
-                <h5 className="text-sm font-medium text-gray-200">{block.title}</h5>
-                <button
-                  onClick={() => onExecuteSQL(block.sql)}
-                  className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm rounded-lg transition-all duration-200 hover:shadow-lg"
-                >
-                  <Icons.Play size={14} />
-                  执行查询
-                </button>
-              </div>
-              <pre className="text-xs text-gray-400 bg-gray-900/50 p-3 rounded border border-white/5 font-mono overflow-x-auto">
-                {block.sql}
-              </pre>
-            </div>
-          ))}
+          <div className="grid grid-cols-1 gap-2">
+            {category.items.map((item, index) => (
+              <button
+                key={index}
+                onClick={() => setQuery(item.sql)}
+                className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
+              >
+                <div className="text-sm font-medium text-gray-200 group-hover:text-white">{item.name}</div>
+                <div className="text-xs text-gray-500 mt-1">{item.desc}</div>
+              </button>
+            ))}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 };
 
-// 增强型数据表格组件
+// SQL历史表模板
+const SQLHistoryTableTemplates: React.FC<{
+  setQuery: (query: string) => void;
+}> = ({ setQuery }) => {
+  const templates = {
+    history: {
+      title: '📜 执行历史',
+      icon: Icons.History,
+      items: [
+        { name: '最近执行', sql: 'SELECT * FROM sql_history ORDER BY executedAt DESC LIMIT 10;', desc: 'ORDER BY executedAt' },
+        { name: '成功查询', sql: 'SELECT * FROM sql_history WHERE success = 1 ORDER BY executedAt DESC;', desc: 'WHERE success = 1' },
+        { name: '失败查询', sql: 'SELECT * FROM sql_history WHERE success = 0 ORDER BY executedAt DESC;', desc: 'WHERE success = 0' },
+        { name: '执行统计', sql: 'SELECT COUNT(*) as total, SUM(success) as success_count FROM sql_history;', desc: 'COUNT + SUM' }
+      ]
+    }
+  };
+
+  return <TemplateGrid templates={templates} setQuery={setQuery} />;
+};
+
+// SQL收藏表模板
+const SQLFavoritesTableTemplates: React.FC<{
+  setQuery: (query: string) => void;
+}> = ({ setQuery }) => {
+  const templates = {
+    favorites: {
+      title: '⭐ 收藏查询',
+      icon: Icons.Star,
+      items: [
+        { name: '所有收藏', sql: 'SELECT * FROM sql_favorites ORDER BY createdAt DESC;', desc: 'ORDER BY createdAt' },
+        { name: '按分类', sql: 'SELECT * FROM sql_favorites WHERE category = ? ORDER BY createdAt DESC;', desc: 'WHERE category = ?' },
+        { name: '使用频率', sql: 'SELECT sql, COUNT(*) as usage_count FROM sql_history GROUP BY sql ORDER BY usage_count DESC;', desc: 'GROUP BY sql' }
+      ]
+    }
+  };
+
+  return <TemplateGrid templates={templates} setQuery={setQuery} />;
+};
+
+// 分析会话表模板
+const AnalysisSessionsTableTemplates: React.FC<{
+  setQuery: (query: string) => void;
+}> = ({ setQuery }) => {
+  const templates = {
+    analysis: {
+      title: '🔍 分析会话',
+      icon: Icons.Analysis,
+      items: [
+        { name: '活跃会话', sql: 'SELECT * FROM analysis_sessions WHERE status = \'active\' ORDER BY createdAt DESC;', desc: 'WHERE status = \'active\'' },
+        { name: '完成分析', sql: 'SELECT * FROM analysis_sessions WHERE status = \'completed\' ORDER BY completedAt DESC;', desc: 'WHERE status = \'completed\'' },
+        { name: '会话统计', sql: 'SELECT status, COUNT(*) as count FROM analysis_sessions GROUP BY status;', desc: 'GROUP BY status' }
+      ]
+    }
+  };
+
+  return <TemplateGrid templates={templates} setQuery={setQuery} />;
+};
+
+// 通用模板网格组件
+const TemplateGrid: React.FC<{
+  templates: Record<string, { title: string; icon: any; items: Array<{ name: string; sql: string; desc: string; }> }>;
+  setQuery: (query: string) => void;
+}> = ({ templates, setQuery }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    {Object.entries(templates).map(([key, category]) => (
+      <div key={key} className="space-y-3">
+        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
+          <category.icon size={16} />
+          {category.title}
+        </h4>
+        <div className="grid grid-cols-1 gap-2">
+          {category.items.map((item, index) => (
+            <button
+              key={index}
+              onClick={() => setQuery(item.sql)}
+              className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
+            >
+              <div className="text-sm font-medium text-gray-200 group-hover:text-white">{item.name}</div>
+              <div className="text-xs text-gray-500 mt-1">{item.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+// 增强数据表格组件
 const EnhancedDataTable: React.FC<{
   columns: string[];
   rows: any[][];
@@ -786,7 +579,7 @@ const EnhancedDataTable: React.FC<{
   const [editValue, setEditValue] = useState<string>('');
 
   // 排序和筛选数据
-  const processedData = useMemo(() => {
+  const processedData = React.useMemo(() => {
     let data = rows.map((row: any[], index: number) => ({ row, originalIndex: index }));
 
     // 应用筛选
@@ -822,7 +615,7 @@ const EnhancedDataTable: React.FC<{
     return data;
   }, [rows, sortColumn, sortDirection, filters]);
 
-  const handleSort = useCallback((columnIndex: number) => {
+  const handleSort = React.useCallback((columnIndex: number) => {
     if (sortColumn === columnIndex) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -831,19 +624,19 @@ const EnhancedDataTable: React.FC<{
     }
   }, [sortColumn]);
 
-  const handleFilterChange = useCallback((columnIndex: number, value: string) => {
+  const handleFilterChange = React.useCallback((columnIndex: number, value: string) => {
     setFilters(prev => ({
       ...prev,
       [columnIndex]: value
     }));
   }, []);
 
-  const handleCellEdit = useCallback((rowIndex: number, colIndex: number, value: any) => {
+  const handleCellEdit = React.useCallback((rowIndex: number, colIndex: number, value: any) => {
     setEditingCell({ row: rowIndex, col: colIndex });
     setEditValue(String(value || ''));
   }, []);
 
-  const handleCellSave = useCallback(() => {
+  const handleCellSave = React.useCallback(() => {
     if (!editingCell) return;
 
     // 这里可以生成UPDATE SQL语句
@@ -860,12 +653,12 @@ const EnhancedDataTable: React.FC<{
     setEditValue('');
   }, [editingCell, processedData, columns, editValue, onExecuteSQL]);
 
-  const handleCellCancel = useCallback(() => {
+  const handleCellCancel = React.useCallback(() => {
     setEditingCell(null);
     setEditValue('');
   }, []);
 
-  const handleDeleteRow = useCallback((rowIndex: number) => {
+  const handleDeleteRow = React.useCallback((rowIndex: number) => {
     const originalRow = processedData[rowIndex];
     const idValue = originalRow.row[columns.indexOf('id')];
 
@@ -875,7 +668,7 @@ const EnhancedDataTable: React.FC<{
     }
   }, [processedData, columns, onExecuteSQL]);
 
-  const exportToCSV = useCallback(() => {
+  const exportToCSV = React.useCallback(() => {
     const csvContent = [
       columns.join(','),
       ...processedData.map(({ row }) => row.map(cell => {
@@ -894,7 +687,7 @@ const EnhancedDataTable: React.FC<{
     link.click();
   }, [columns, processedData]);
 
-  const exportToJSON = useCallback(() => {
+  const exportToJSON = React.useCallback(() => {
     const jsonData = processedData.map(({ row }) => {
       const obj: any = {};
       columns.forEach((col, index) => {
@@ -1060,18 +853,11 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
   const {
     executeSQL,
     isInitialized,
-    syncState,
-    initializeSQLTables,
     saveSQLHistory,
     saveSQLFavorite,
     deleteSQLFavorite,
-    updateSQLFavoriteName,
-    saveAnalysisSession,
     loadSQLHistory,
-    loadSQLFavorites,
-    createPrompt,
-    updatePrompt,
-    deletePromptById
+    loadSQLFavorites
   } = useDuckDBSync();
 
   // TAB状态
@@ -1079,7 +865,6 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
 
   // SQL工作台状态
   const [query, setQuery] = useState('');
-  const [inputMode] = useState<InputMode>('sql');
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1089,135 +874,90 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
   // 编辑器配置状态
   const [editorHeight] = useState<number>(192); // 默认12rem (192px)
 
+  // 模板配置状态
+  const [selectedTable, setSelectedTable] = useState<string>('prompts');
+
   // 初始化和数据加载
   useEffect(() => {
     if (isInitialized) {
-      // 初始化SQL表
-      initializeSQLTables();
-
-      // 加载历史数据
-      const loadData = async () => {
-        try {
-          const historyData = await loadSQLHistory();
-          const favoritesData = await loadSQLFavorites();
-
-          // 转换数据格式
-          const formattedHistory: SQLHistoryItem[] = historyData.map(item => ({
-            id: item.id,
-            inputType: item.inputType as InputMode,
-            inputText: item.inputText,
-            generatedSQL: item.generatedSQL,
-            executedSQL: item.executedSQL,
-            timestamp: item.timestamp,
-            executionTime: item.executionTime,
-            resultCount: item.resultCount,
-            success: item.success === 1,
-            error: item.error
-          }));
-
-          const formattedFavorites: FavoriteSQL[] = favoritesData.map(item => ({
-            id: item.id,
-            name: item.name,
-            sqlText: item.sqlText,
-            createdAt: item.createdAt,
-            tags: item.tags ? JSON.parse(item.tags) : undefined
-          }));
-
-          setHistory(formattedHistory);
-          setFavorites(formattedFavorites);
-        } catch (error) {
-          console.error('Failed to load SQL console data:', error);
-        }
-      };
-
-      loadData();
+      loadSQLHistory().then(setHistory);
+      loadSQLFavorites().then(setFavorites);
     }
-  }, [isInitialized, initializeSQLTables, loadSQLHistory, loadSQLFavorites]);
+  }, [isInitialized, loadSQLHistory, loadSQLFavorites]);
 
-  // 执行查询
+  // 执行SQL查询
   const executeQuery = useCallback(async () => {
-    if (!query.trim() || isExecuting) return;
+    if (!query.trim()) return;
 
     setIsExecuting(true);
     setError(null);
-    setResult(null);
 
-    const startTime = Date.now();
     try {
-      const sqlResult = await executeSQL(query.trim());
+      const startTime = Date.now();
+      const sqlResult = await executeSQL(query);
       const executionTime = Date.now() - startTime;
 
-      // 检查结果是否为空
-      if (!sqlResult || sqlResult.length === 0) {
+      // 保存到历史记录
+      const historyItem: SQLHistoryItem = {
+        id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        inputType: 'sql',
+        inputText: query,
+        executedSQL: query,
+        timestamp: Date.now(),
+        executionTime,
+        resultCount: sqlResult?.length || 0,
+        success: true
+      };
+      await saveSQLHistory(historyItem);
+
+      // 更新历史状态
+      setHistory(prev => [historyItem, ...prev.slice(0, 99)]);
+
+      // 处理结果
+      if (Array.isArray(sqlResult) && sqlResult.length > 0) {
+        const columns = Object.keys(sqlResult[0]);
         setResult({
-          columns: ['message'],
-          rows: [['查询成功，返回 0 条记录']],
-          executionTime,
-          rowCount: 0
-        });
-
-        // 添加到历史记录
-        const historyItem: SQLHistoryItem = {
-          id: `query_${Date.now()}`,
-          inputType: inputMode,
-          inputText: query.trim(),
-          executedSQL: query.trim(),
-          timestamp: Date.now(),
-          executionTime,
-          resultCount: 0,
-          success: true
-        };
-
-        setHistory(prev => [historyItem, ...prev.slice(0, 49)]);
-        saveSQLHistory(historyItem);
-      } else {
-        const processedResult: QueryResult = {
-          columns: sqlResult.length > 0 ? Object.keys(sqlResult[0]) : [],
-          rows: sqlResult.map(row => Object.values(row)),
+          columns,
+          rows: sqlResult.map(row => columns.map(col => row[col])),
           executionTime,
           rowCount: sqlResult.length
-        };
-
-        setResult(processedResult);
-
-        // 添加到历史记录
-        const historyItem: SQLHistoryItem = {
-          id: `query_${Date.now()}`,
-          inputType: inputMode,
-          inputText: query.trim(),
-          executedSQL: query.trim(),
-          timestamp: Date.now(),
+        });
+      } else {
+        setResult({
+          columns: ['message'],
+          rows: [['查询执行成功']],
           executionTime,
-          resultCount: sqlResult.length,
-          success: true
-        };
-
-        setHistory(prev => [historyItem, ...prev.slice(0, 49)]);
-        saveSQLHistory(historyItem);
+          rowCount: 1
+        });
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '执行失败';
+      const errorMessage = err instanceof Error ? err.message : '未知错误';
       setError(errorMessage);
 
-      // 添加失败的查询到历史记录
+      // 保存失败记录到历史
       const historyItem: SQLHistoryItem = {
-        id: `query_${Date.now()}`,
-        inputType: inputMode,
-        inputText: query.trim(),
-        executedSQL: query.trim(),
+        id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        inputType: 'sql',
+        inputText: query,
+        executedSQL: query,
         timestamp: Date.now(),
-        executionTime: Date.now() - startTime,
-        resultCount: 0,
         success: false,
         error: errorMessage
       };
-
-      setHistory(prev => [historyItem, ...prev.slice(0, 49)]);
-      saveSQLHistory(historyItem);
+      await saveSQLHistory(historyItem);
+      setHistory(prev => [historyItem, ...prev.slice(0, 99)]);
     } finally {
       setIsExecuting(false);
     }
-  }, [query, inputMode, isExecuting, executeSQL, saveSQLHistory]);
+  }, [query, executeSQL, saveSQLHistory]);
+
+  // 键盘快捷键处理
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      executeQuery();
+    }
+  }, [executeQuery]);
 
   // 清空结果
   const clearResult = useCallback(() => {
@@ -1225,80 +965,46 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
     setError(null);
   }, []);
 
-  // 格式化时间
-  const formatExecutionTime = useCallback((ms: number) => {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
-  }, []);
-
-
   // 添加到收藏
-  const addToFavorites = useCallback((sql: string, name?: string) => {
+  const addToFavorites = useCallback(async (sql: string, name?: string) => {
+    if (!sql.trim()) return;
+
+    const favoriteName = name || `查询 ${new Date().toLocaleString()}`;
     const favorite: FavoriteSQL = {
       id: `fav_${Date.now()}`,
-      name: name || `收藏查询 ${favorites.length + 1}`,
+      name: favoriteName,
       sqlText: sql,
-      createdAt: Date.now(),
-      tags: []
+      createdAt: Date.now()
     };
+
+    await saveSQLFavorite(favorite);
     setFavorites(prev => [favorite, ...prev]);
-    saveSQLFavorite(favorite);
-  }, [favorites.length, saveSQLFavorite]);
-
-
-
-  // 键盘事件处理
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      executeQuery();
-    }
-  }, [executeQuery]);
-
-  // Early return for initialization
-  if (!isInitialized) {
-    return (
-      <div className={`bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden ${className}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Icons.Database size={48} className="text-gray-600 mx-auto mb-4" />
-            <div className="text-gray-400">正在初始化 DuckDB...</div>
-            {syncState.error && (
-              <div className="text-red-400 text-sm mt-2">{syncState.error}</div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, [saveSQLFavorite]);
 
   return (
     <div className={`h-full ${colors.bg.cardDarker} ${colors.border.light} ${FOUNDATION.borderRadius['2xl']} ${LAYOUT.elevation.max} overflow-hidden flex flex-col ${className}`}>
-      {/* Header - Compact spacing */}
-      <div className="relative bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-blue-500/10 border-b border-white/10 flex-shrink-0">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
-        <div className="relative flex items-center justify-between p-3 sm:p-4">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30 flex-shrink-0">
-              <Icons.Database size={18} className="sm:w-5 sm:h-5 text-brand-400" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg sm:text-xl font-bold text-white truncate">DuckDB 数据控制台</h1>
-              <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">数据分析 • SQL 工作台 • 执行历史</p>
-            </div>
+      {/* Header */}
+      <div className="relative flex items-center justify-between p-3 sm:p-4 min-w-0">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30 flex-shrink-0">
+            <Icons.Database size={18} className="sm:w-5 sm:h-5 text-brand-400" />
           </div>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 transform hover:scale-105 touch-manipulation ml-2 flex-shrink-0"
-            >
-              <Icons.Close size={20} />
-            </button>
-          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-xl font-bold text-white truncate">DuckDB 数据控制台</h1>
+            <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">数据分析 • SQL 工作台 • 执行历史</p>
+          </div>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 transform hover:scale-105 touch-manipulation ml-2 flex-shrink-0"
+          >
+            <Icons.Close size={20} />
+          </button>
+        )}
       </div>
 
-      {/* TAB Navigation - Using design tokens */}
+      {/* TAB Navigation */}
       <div className={`${colors.bg.surface} ${colors.border.lighter} border-b flex-shrink-0`}>
         <div className="flex">
           {[
@@ -1322,11 +1028,11 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
         </div>
       </div>
 
-      {/* Content Area - Optimized for space utilization */}
+      {/* Content Area */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'workbench' && (
           <div className="h-full flex flex-col">
-            {/* SQL Editor - Compact layout */}
+            {/* SQL Editor */}
             <div className="p-4 border-b border-white/5 flex-shrink-0">
               <div className="space-y-4">
                 {/* 标题区域 */}
@@ -1342,7 +1048,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                   </div>
                 </div>
 
-                {/* SQL 语法高亮编辑器 - Resizable height */}
+                {/* SQL 语法高亮编辑器 */}
                 <SQLHighlightEditor
                   value={query}
                   onChange={setQuery}
@@ -1354,7 +1060,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                   resizable={true}
                 />
 
-                {/* Action Buttons - Mobile responsive */}
+                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <button
@@ -1375,7 +1081,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                         setQuery(formatted);
                       }}
                       disabled={!query.trim()}
-                      className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-purple-700/80 hover:bg-purple-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-purple-300 hover:text-white disabled:cursor-not-allowed text-sm rounded-lg border border-purple-500/30 hover:border-purple-400/50 disabled:border-gray-600/30 transition-all duration-200 min-h-[44px] touch-manipulation"
+                      className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-purple-700/80 hover:bg-purple-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-purple-300 hover:text-white disabled:cursor-not-allowed text-sm ${FOUNDATION.borderRadius.lg} border-purple-500/30 hover:border-purple-400/50 disabled:border-gray-600/30 transition-all duration-200 min-h-[44px] touch-manipulation`}
                     >
                       <Icons.Code size={14} />
                       <span className="hidden xs:inline">格式化</span>
@@ -1383,7 +1089,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                     <button
                       onClick={() => addToFavorites(query)}
                       disabled={!query.trim()}
-                      className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-yellow-700/80 hover:bg-yellow-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-yellow-300 hover:text-white disabled:cursor-not-allowed text-sm rounded-lg border border-yellow-500/30 hover:border-yellow-400/50 disabled:border-gray-600/30 transition-all duration-200 min-h-[44px] touch-manipulation"
+                      className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-yellow-700/80 hover:bg-yellow-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-yellow-300 hover:text-white disabled:cursor-not-allowed text-sm ${FOUNDATION.borderRadius.lg} border-yellow-500/30 hover:border-yellow-400/50 disabled:border-gray-600/30 transition-all duration-200 min-h-[44px] touch-manipulation`}
                     >
                       <Icons.Star size={14} />
                       <span className="hidden xs:inline">收藏</span>
@@ -1412,7 +1118,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
               </div>
             </div>
 
-            {/* Results Area - Optimized for space utilization */}
+            {/* Results Area */}
             <div className="flex-1 overflow-hidden min-h-0">
               {error && (
                 <div className="mx-4 mt-4 mb-0">
@@ -1423,300 +1129,47 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                       </div>
                       <span className="text-red-400 font-semibold text-lg">执行失败</span>
                     </div>
-                    <div className="text-red-300 text-sm font-mono bg-red-900/10 p-4 rounded-lg border border-red-500/20 ml-11">
-                      {error}
-                    </div>
+                    <div className="text-red-300 text-sm whitespace-pre-wrap">{error}</div>
                   </div>
                 </div>
               )}
 
-              {result && (
+              {result && !error && (
                 <div className="h-full flex flex-col">
-                  {/* Results Header - Compact and efficient */}
-                  <div className="flex items-center justify-between p-3 bg-gray-800/50 border-b border-white/5">
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2 text-green-400">
-                        <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center">
-                          <Icons.Check size={14} />
-                        </div>
-                        <span className="font-medium">执行成功</span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-400">
-                        {result.columns.length > 0 ? (
-                          <>
-                            <span className="bg-gray-700/50 px-2 py-1 rounded">
-                              {result.rowCount} 行 × {result.columns.length} 列
-                            </span>
-                            <span className="bg-gray-700/50 px-2 py-1 rounded">
-                              {formatExecutionTime(result.executionTime)}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="bg-gray-700/50 px-2 py-1 rounded">
-                            {formatExecutionTime(result.executionTime)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {result.columns.length > 0 && (
-                        <>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(JSON.stringify(result.rows, null, 2))}
-                            className="text-gray-400 hover:text-white text-sm flex items-center gap-2 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-all duration-200"
-                          >
-                            <Icons.Copy size={14} />
-                            复制结果
-                          </button>
-                          <button
-                            onClick={() => {
-                              const csv = [result.columns.join(','), ...result.rows.map(row => row.join(','))].join('\n');
-                              navigator.clipboard.writeText(csv);
-                            }}
-                            className="text-gray-400 hover:text-white text-sm flex items-center gap-2 px-3 py-1.5 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-all duration-200"
-                          >
-                            <Icons.Download size={14} />
-                            CSV
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Enhanced Results Table */}
-                  <div className="flex-1 overflow-auto">
-                    {result.columns.length === 0 ? (
-                      <div className="p-12 text-center">
-                        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Icons.Check size={32} className="text-green-400" />
-                        </div>
-                        <div className="text-gray-300 font-medium text-lg mb-2">
-                          {result.rowCount === 0 ? '查询成功，返回 0 条记录' : `执行成功，影响 ${result.rowCount} 行`}
-                        </div>
-                        <div className="text-gray-500 text-sm">
-                          执行时间: {formatExecutionTime(result.executionTime)}
-                        </div>
-                      </div>
-                    ) : (
-                      <EnhancedDataTable
-                        columns={result.columns}
-                        rows={result.rows}
-                        onExecuteSQL={executeQuery}
-                      />
-                    )}
-                  </div>
+                  <EnhancedDataTable
+                    columns={result.columns}
+                    rows={result.rows}
+                    onExecuteSQL={executeQuery}
+                  />
                 </div>
               )}
 
               {!result && !error && (
                 <div className="p-6">
-                  {/* SQL 查询模板 - MECE 原则组织 */}
+                  {/* SQL 查询模板 - 数据表驱动设计 */}
                   <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                      <Icons.Code size={20} className="text-brand-400" />
-                      SQL 查询模板
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                      {/* 基础查询 */}
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                          <Icons.Database size={16} />
-                          基础查询
-                        </h4>
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            onClick={() => setQuery('SELECT COUNT(*) as total FROM prompts WHERE deletedAt IS NULL;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">统计总数</div>
-                            <div className="text-xs text-gray-500 mt-1">COUNT(*)</div>
-                          </button>
-                          <button
-                            onClick={() => setQuery('SELECT * FROM prompts WHERE deletedAt IS NULL LIMIT 5;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">查看前5条</div>
-                            <div className="text-xs text-gray-500 mt-1">LIMIT 5</div>
-                          </button>
-                          <button
-                            onClick={() => setQuery('SELECT DISTINCT category FROM prompts WHERE deletedAt IS NULL;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">所有分类</div>
-                            <div className="text-xs text-gray-500 mt-1">DISTINCT category</div>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 条件查询 */}
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                          <Icons.Search size={16} />
-                          条件查询
-                        </h4>
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            onClick={() => setQuery('SELECT * FROM prompts WHERE category = \'Code\' AND deletedAt IS NULL;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">Code分类</div>
-                            <div className="text-xs text-gray-500 mt-1">WHERE category = \'Code\'</div>
-                          </button>
-                          <button
-                            onClick={() => setQuery('SELECT * FROM prompts WHERE isFavorite = 1 AND deletedAt IS NULL;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">收藏夹</div>
-                            <div className="text-xs text-gray-500 mt-1">WHERE isFavorite = 1</div>
-                          </button>
-                          <button
-                            onClick={() => setQuery('SELECT * FROM prompts WHERE tags LIKE \'%AI%\' AND deletedAt IS NULL;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">AI相关</div>
-                            <div className="text-xs text-gray-500 mt-1">WHERE tags LIKE \'%AI%\'</div>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 高级查询 */}
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                          <Icons.Analysis size={16} />
-                          高级查询
-                        </h4>
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            onClick={() => setQuery('SELECT category, COUNT(*) as count FROM prompts WHERE deletedAt IS NULL GROUP BY category ORDER BY count DESC;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">分类统计</div>
-                            <div className="text-xs text-gray-500 mt-1">GROUP BY + ORDER BY</div>
-                          </button>
-                          <button
-                            onClick={() => setQuery('SELECT * FROM prompts WHERE deletedAt IS NULL ORDER BY createdAt DESC LIMIT 10;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">最新创建</div>
-                            <div className="text-xs text-gray-500 mt-1">ORDER BY createdAt DESC</div>
-                          </button>
-                          <button
-                            onClick={() => setQuery('SELECT * FROM prompts WHERE deletedAt IS NULL ORDER BY LENGTH(content) DESC LIMIT 5;')}
-                            className="text-left p-3 bg-gray-800/50 hover:bg-gray-700/50 border border-white/10 hover:border-white/20 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-gray-200 group-hover:text-white">最长内容</div>
-                            <div className="text-xs text-gray-500 mt-1">ORDER BY LENGTH()</div>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 直接 CRUD 操作 */}
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                          <Icons.Edit size={16} />
-                          直接 CRUD 操作
-                        </h4>
-                        <div className="grid grid-cols-1 gap-2">
-                          <button
-                            onClick={async () => {
-                              try {
-                                const newPrompt = {
-                                  id: `demo_${Date.now()}`,
-                                  title: 'SQL控制台创建的示例提示词',
-                                  content: '这是一个通过SQL控制台直接创建的提示词示例。',
-                                  description: '通过SQL控制台CRUD操作创建的演示提示词',
-                                  category: 'Demo',
-                                  tags: ['SQL控制台', '演示'],
-                                  isFavorite: false,
-                                  createdAt: Date.now(),
-                                  updatedAt: Date.now()
-                                };
-                                await createPrompt(newPrompt);
-                                // 显示成功消息
-                                setResult({
-                                  columns: ['message'],
-                                  rows: [['提示词创建成功！']],
-                                  executionTime: 0,
-                                  rowCount: 1
-                                });
-                                setError(null);
-                              } catch (err) {
-                                setError(`创建失败: ${err instanceof Error ? err.message : '未知错误'}`);
-                              }
-                            }}
-                            className="text-left p-3 bg-green-900/20 hover:bg-green-800/30 border border-green-500/30 hover:border-green-400/50 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-green-200 group-hover:text-white">创建示例提示词</div>
-                            <div className="text-xs text-green-400/70 mt-1">直接插入数据</div>
-                          </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                // 获取第一个提示词进行演示更新
-                                const response = await executeSQL('SELECT * FROM prompts WHERE deletedAt IS NULL LIMIT 1');
-                                if (response.length > 0) {
-                                  const prompt = response[0];
-                                  await updatePrompt({
-                                    ...prompt,
-                                    title: prompt.title + ' (已更新)',
-                                    updatedAt: Date.now()
-                                  });
-                                  setResult({
-                                    columns: ['message'],
-                                    rows: [['提示词更新成功！']],
-                                    executionTime: 0,
-                                    rowCount: 1
-                                  });
-                                  setError(null);
-                                } else {
-                                  setError('没有可更新的提示词');
-                                }
-                              } catch (err) {
-                                setError(`更新失败: ${err instanceof Error ? err.message : '未知错误'}`);
-                              }
-                            }}
-                            className="text-left p-3 bg-blue-900/20 hover:bg-blue-800/30 border border-blue-500/30 hover:border-blue-400/50 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-blue-200 group-hover:text-white">更新第一个提示词</div>
-                            <div className="text-xs text-blue-400/70 mt-1">直接修改数据</div>
-                          </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                // 获取最后一个提示词进行演示删除
-                                const response = await executeSQL('SELECT id FROM prompts WHERE deletedAt IS NULL ORDER BY createdAt DESC LIMIT 1');
-                                if (response.length > 0) {
-                                  const promptId = response[0].id;
-                                  await deletePromptById(promptId);
-                                  setResult({
-                                    columns: ['message'],
-                                    rows: [['提示词删除成功！']],
-                                    executionTime: 0,
-                                    rowCount: 1
-                                  });
-                                  setError(null);
-                                } else {
-                                  setError('没有可删除的提示词');
-                                }
-                              } catch (err) {
-                                setError(`删除失败: ${err instanceof Error ? err.message : '未知错误'}`);
-                              }
-                            }}
-                            className="text-left p-3 bg-red-900/20 hover:bg-red-800/30 border border-red-500/30 hover:border-red-400/50 rounded-lg transition-all duration-200 group"
-                          >
-                            <div className="text-sm font-medium text-red-200 group-hover:text-white">删除最新提示词</div>
-                            <div className="text-xs text-red-400/70 mt-1">直接删除数据</div>
-                          </button>
-                        </div>
-                      </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <Icons.Code size={20} className="text-brand-400" />
+                        SQL 查询模板
+                      </h3>
+                      {/* 数据表选择器 */}
+                      <select
+                        value={selectedTable}
+                        onChange={(e) => setSelectedTable(e.target.value)}
+                        className="px-3 py-2 bg-gray-800/50 border border-white/10 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-500/50"
+                      >
+                        <option value="prompts">📝 prompts 表</option>
+                        <option value="sql_history">📜 sql_history 表</option>
+                        <option value="sql_favorites">⭐ sql_favorites 表</option>
+                        <option value="analysis_sessions">🔍 analysis_sessions 表</option>
+                      </select>
                     </div>
-                  </div>
-
-                  {/* 空状态提示 */}
-                  <div className="text-center text-gray-500">
-                    <Icons.Database size={48} className="text-gray-600 mx-auto mb-4" />
-                    <div className="text-lg font-medium mb-2">开始查询</div>
-                    <div className="text-sm">选择上方模板或直接输入 SQL 查询</div>
+                    {/* 动态模板内容基于选中表 */}
+                    {selectedTable === 'prompts' && <PromptsTableTemplates setQuery={setQuery} />}
+                    {selectedTable === 'sql_history' && <SQLHistoryTableTemplates setQuery={setQuery} />}
+                    {selectedTable === 'sql_favorites' && <SQLFavoritesTableTemplates setQuery={setQuery} />}
+                    {selectedTable === 'analysis_sessions' && <AnalysisSessionsTableTemplates setQuery={setQuery} />}
                   </div>
                 </div>
               )}
@@ -1726,9 +1179,9 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
 
         {activeTab === 'analysis' && (
           <DataAnalysisTab
-            onExecuteQuery={setQuery}
+            onExecuteQuery={executeQuery}
             onSwitchToWorkbench={() => setActiveTab('workbench')}
-            onSaveAnalysisSession={saveAnalysisSession}
+            onSaveAnalysisSession={() => {}}
           />
         )}
 
@@ -1739,11 +1192,6 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
             onExecuteQuery={setQuery}
             onSwitchToWorkbench={() => setActiveTab('workbench')}
             onAddToFavorites={addToFavorites}
-            onUpdateFavoriteName={async (id, name) => {
-              // 更新收藏名称
-              setFavorites(prev => prev.map(f => f.id === id ? { ...f, name } : f));
-              await updateSQLFavoriteName(id, name);
-            }}
             onDeleteFavorite={async (id) => {
               // 删除收藏
               setFavorites(prev => prev.filter(f => f.id !== id));

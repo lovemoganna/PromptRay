@@ -376,35 +376,35 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         </div>
       ) : (
             <div className="space-y-6">
-          {/* Optimized Header - Enhanced visual hierarchy */}
-          <div className="flex items-center justify-between pb-2 border-b border-white/5">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30 shadow-lg shadow-brand-500/10">
-                <Icons.Chip size={20} className="text-brand-400" />
+          {/* Optimized Header - Unified typography and spacing */}
+          <div className="flex items-center justify-between py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-lg flex items-center justify-center border border-brand-500/30">
+                <Icons.Chip size={16} className="text-brand-400" />
               </div>
-              <div className="space-y-1">
-                <h2 className="text-2xl font-black text-white tracking-tight">选择模型</h2>
-                <p className="text-sm text-gray-400 font-medium leading-tight">选择最适合您创作需求的AI模型</p>
+              <div>
+                <h2 className="text-lg font-semibold text-white leading-tight">选择模型</h2>
+                <p className="text-sm text-gray-400 leading-snug">选择最适合您的AI模型</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Performance Comparison Button */}
+            <div className="flex items-center gap-2">
+              {/* Unified button styling */}
               <button
                 onClick={() => setShowComparison(!showComparison)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-gray-300 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/40 hover:border-gray-500/60 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/40 hover:border-gray-500/60 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
                 title="模型性能对比"
               >
-                <Icons.Analysis size={16} />
-                <span>对比</span>
+                <Icons.Analysis size={14} />
+                <span className="hidden sm:inline">对比</span>
               </button>
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-300 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/40 hover:border-gray-500/60 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white bg-gray-800/60 hover:bg-gray-700/80 border border-gray-600/40 hover:border-gray-500/60 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                 title="刷新模型列表"
               >
-                <Icons.Restore size={16} className={refreshing ? 'animate-spin' : ''} />
-                <span>{refreshing ? '刷新中...' : '刷新列表'}</span>
+                <Icons.Restore size={14} className={refreshing ? 'animate-spin' : ''} />
+                <span>{refreshing ? '刷新中' : '刷新'}</span>
               </button>
             </div>
           </div>
@@ -556,7 +556,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             ];
 
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 lg:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                 {platforms.map(platform => {
                   const models = groupedModels[platform.key];
                   const hasApiKey = platform.key === 'auto' || checkApiKeyAvailability(platform.key as ProviderKey);
@@ -572,10 +572,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     ? `border-gray-700/60 hover:border-${platform.color}-500/40 hover:shadow-${platform.color}-500/20`
                     : 'border-gray-700/60'
                 }`}>
-                  {/* Optimized Platform Header - Better alignment and contrast */}
+                  {/* Compact Platform Header - Space efficient */}
                   <button
                     onClick={() => togglePlatformExpansion(platform.key)}
-                    className="w-full flex items-center gap-4 p-5 hover:bg-white/5 rounded-2xl transition-all duration-200 group"
+                    className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition-all duration-200 group"
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-base font-medium transition-all duration-300 ${
                       hasApiKey
@@ -589,9 +589,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         <Icons.Run size={18} className="text-purple-400" />
                       ) : <Icons.Error size={18} className="text-gray-500" />}
                     </div>
-                    <div className="flex-1 min-w-0 text-left space-y-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className={`text-lg font-bold truncate ${
+                    <div className="flex-1 min-w-0 text-left space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <h3 className={`text-base font-semibold truncate ${
                           hasApiKey ? 'text-white' : 'text-gray-500'
                         }`}>
                           {platform.label}
@@ -611,7 +611,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className={`text-sm leading-relaxed font-medium ${
+                      <p className={`text-sm leading-snug font-medium ${
                         hasApiKey ? 'text-gray-400' : 'text-gray-600'
                       }`}>
                         {platform.shortDesc}
@@ -670,8 +670,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                               {/* Enhanced Content - Rich information display */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0 space-y-1">
-                                    <h4 className={`text-base font-bold truncate leading-tight ${
+                                  <div className="flex-1 min-w-0 space-y-0.5">
+                                    <h4 className={`text-sm font-semibold truncate leading-snug ${
                                       option.provider === value.provider && option.model === value.model
                                         ? 'text-white'
                                         : 'text-gray-200 group-hover:text-white'
@@ -679,8 +679,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                       {option.displayName}
                                     </h4>
 
-                                    {/* Model metrics and badges - 超紧凑排列 */}
-                                    <div className="flex items-center gap-1 flex-wrap">
+                                    {/* Unified model metrics and badges */}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                       {/* Speed indicator */}
                                       {option.speed && (
                                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
@@ -717,9 +717,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                       )}
                                     </div>
 
-                                    {/* Description - 紧贴标签 */}
+                                    {/* Unified description */}
                                     {option.description && (
-                                      <p className={`text-sm leading-snug mt-0.5 ${
+                                      <p className={`text-sm leading-snug mt-1 ${
                                         option.provider === value.provider && option.model === value.model
                                           ? 'text-blue-200'
                                           : 'text-gray-400 group-hover:text-gray-300'
@@ -728,11 +728,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                       </p>
                                     )}
 
-                                    {/* Use cases - 更紧凑的间距 */}
+                                    {/* Unified use cases */}
                                     {option.useCases && option.useCases.length > 0 && (
                                       <div className="flex flex-wrap gap-1 mt-1">
-                                        {option.useCases.slice(0, 3).map((useCase, idx) => (
-                                          <span key={idx} className="text-xs px-2 py-0.5 bg-gray-700/50 text-gray-300 rounded-md border border-gray-600/50">
+                                        {option.useCases.slice(0, 2).map((useCase, idx) => (
+                                          <span key={idx} className="text-xs px-1.5 py-0.5 bg-gray-700/50 text-gray-300 rounded border border-gray-600/50">
                                             {useCase}
                                           </span>
                                         ))}
@@ -745,10 +745,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                     )}
                                   </div>
 
-                                  {/* 右侧操作标签 - 与左侧状态点垂直对齐 */}
+                                  {/* Unified selected indicator */}
                                   {option.provider === value.provider && option.model === value.model && (
-                                    <div className="flex items-center gap-1.5 text-sm text-blue-300 font-bold px-3 py-1.5 bg-blue-500/20 border border-blue-400/50 rounded-lg shadow-sm ml-auto">
-                                      <Icons.CheckCircle size={12} />
+                                    <div className="flex items-center gap-1 text-xs text-blue-300 font-semibold px-2 py-1 bg-blue-500/20 border border-blue-400/50 rounded shadow-sm ml-auto">
+                                      <Icons.CheckCircle size={10} />
                                       <span>已选择</span>
                                     </div>
                                   )}

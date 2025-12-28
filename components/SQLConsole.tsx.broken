@@ -1,0 +1,1854 @@
+import React, { useState, useRef, useCallback } from 'react';
+import { Icons } from './Icons';
+import { useDuckDBSync } from '../hooks/useDuckDBSync';
+import { runGeminiPrompt } from '../services/geminiService';
+
+// TAB类型
+type TabType = 'analysis' | 'workbench' | 'history';
+
+// 输入模式
+type InputMode = 'natural' | 'sql';
+
+// NL2SQL 转换结果
+interface NL2SQLResult {
+  sql: string;
+  confidence?: number;
+  explanation?: string;
+}
+
+// SQL 查询历史类型
+interface SQLHistoryItem {
+  id: string;
+  inputType: InputMode;
+  inputText: string;
+  generatedSQL?: string;
+  executedSQL: string;
+  timestamp: number;
+  executionTime?: number;
+  resultCount?: number;
+  success: boolean;
+  error?: string;
+}
+
+// 查询结果类型
+interface QueryResult {
+  columns: string[];
+  rows: any[][];
+  executionTime: number;
+  rowCount: number;
+}
+
+// 数据分析会话类型
+interface AnalysisSession {
+  id: string;
+  fileName: string;
+  fileType: string;
+  aiResponse: string;
+  createdAt: number;
+}
+
+// 收藏的SQL类型
+interface FavoriteSQL {
+  id: string;
+  name: string;
+  sqlText: string;
+  createdAt: number;
+}
+
+interface SQLConsoleProps {
+  className?: string;
+  onClose?: () => void;
+}
+
+export const SQLConsole: React.FC<SQLConsoleProps> = ({
+  className = '',
+  onClose
+}) => {
+  const {
+    executeSQL,
+    isInitialized,
+    syncState,
+    initializeSQLTables,
+    saveSQLHistory,
+    saveSQLFavorite,
+    deleteSQLFavorite,
+    updateSQLFavoriteName,
+    saveAnalysisSession,
+    loadSQLHistory,
+    loadSQLFavorites,
+    loadAnalysisSessions
+  } = useDuckDBSync();
+
+  // TAB状?
+  const [activeTab, setActiveTab] = useState<TabType>('workbench');
+
+  // SQL工作台状?
+  const [query, setQuery] = useState('');
+  const [inputMode, setInputMode] = useState<InputMode>('sql');
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
+  const [result, setResult] = useState<QueryResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<SQLHistoryItem[]>([]);
+  const [showTableStructure, setShowTableStructure] = useState(false);
+
+  // NL2SQL 相关状?
+  const [nl2sqlResult, setNl2sqlResult] = useState<NL2SQLResult | null>(null);
+  const [showConversionPreview, setShowConversionPreview] = useState(false);
+
+  // 连续对话状?
+  const [conversationContext, setConversationContext] = useState<{
+    lastQuery: string;
+    lastResult: any[] | null;
+    conversationHistory: Array<{
+      type: 'user' | 'system';
+      message: string;
+      timestamp: number;
+    }>;
+  } | null>(null);
+
+  // 数据分析状?
+  const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+
+  // 历史&收藏状?
+  const [favorites, setFavorites] = useState<FavoriteSQL[]>([]);
+
+  // 引用
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 初始化和数据加载
+  useEffect(() => {
+    if (isInitialized) {
+      // 初始化SQL表
+      initializeSQLTables();
+
+      // 加载历史数据
+      const loadData = async () => {
+        try {
+          const historyData = await loadSQLHistory();
+          const favoritesData = await loadSQLFavorites();
+          const analysisData = await loadAnalysisSessions();
+
+          // 转换数据格式
+          const formattedHistory: SQLHistoryItem[] = historyData.map(item => ({
+            id: item.id,
+            inputType: item.inputType as InputMode,
+            inputText: item.inputText,
+            generatedSQL: item.generatedSQL,
+            executedSQL: item.executedSQL,
+            timestamp: item.timestamp,
+            executionTime: item.executionTime,
+            resultCount: item.resultCount,
+            success: item.success === 1,
+            error: item.error
+          }));
+
+          const formattedFavorites: FavoriteSQL[] = favoritesData.map(item => ({
+            id: item.id,
+            name: item.name,
+            sqlText: item.sqlText,
+            createdAt: item.createdAt,
+            tags: item.tags ? JSON.parse(item.tags) : undefined
+          }));
+
+          setHistory(formattedHistory);
+          setFavorites(formattedFavorites);
+          setAnalysisSessions(analysisData);
+        } catch (error) {
+          console.error('Failed to load SQL console data:', error);
+        }
+      };
+
+      loadData();
+    }
+  }, [isInitialized, initializeSQLTables, loadSQLHistory, loadSQLFavorites, loadAnalysisSessions]);
+  const historyRef = useRef<HTMLDivElement>(null);
+
+  // 检测危险SQL操作
+  const isDangerousOperation = useCallback((sql: string): boolean => {
+    const sqlLower = sql.toLowerCase().trim();
+    return sqlLower.includes('delete ') ||
+           sqlLower.includes('drop ') ||
+           sqlLower.includes('truncate ') ||
+           sqlLower.includes('alter ');
+  }, []);
+
+  // NL2SQL 转换
+  const convertNaturalLanguageToSQL = useCallback(async (naturalLanguage: string): Promise<NL2SQLResult> => {
+    let contextPrompt = `你是一个专业的 SQL 生成助手，专门为一个提示词管理系统生成 DuckDB SQL 查询?
+
+数据库结构说明：
+- prompts 表：存储提示词数?
+  - id: 字符串，提示词唯一标识
+  - title: 字符串，提示词标?
+  - content: 字符串，提示词内?
+  - category: 字符串，分类（如：Code, Writing, Ideas, Analysis, Fun, Misc?
+  - tags: JSON数组，标签列?
+  - isFavorite: 布尔值，是否收藏
+  - createdAt: 时间戳，创建时间
+  - updatedAt: 时间戳，更新时间
+  - deletedAt: 时间戳，软删除标记（NULL表示未删除）
+
+常用查询模式?
+1. 查看所有提示词：SELECT * FROM prompts WHERE deletedAt IS NULL
+2. 按分类筛选：SELECT * FROM prompts WHERE category = 'Code' AND deletedAt IS NULL
+3. 搜索内容：SELECT * FROM prompts WHERE content LIKE '%关键?' AND deletedAt IS NULL
+4. 收藏的提示词：SELECT * FROM prompts WHERE isFavorite = 1 AND deletedAt IS NULL
+5. 统计分类数量：SELECT category, COUNT(*) as count FROM prompts WHERE deletedAt IS NULL GROUP BY category`;
+
+    // 添加对话上下?
+    if (conversationContext) {
+      contextPrompt += `
+
+对话上下文：
+- 上一个查询: ${conversationContext.lastQuery}
+- 上次结果: ${conversationContext.lastResult ?
+  `返回 ${conversationContext.lastResult.length} 条记录` :
+  '无结果或执行了修改操作'}
+
+对话历史:
+${conversationContext.conversationHistory.slice(-3).map(h =>
+`${h.type === 'user' ? '用户' : '系统'}: ${h.message}`
+).join('\n')}
+
+请根据对话上下文理解用户的意图，生成合适的 SQL 查询。
+如果?前N??排序"?筛?等操作，请基于上一个查询进行修改。`;
+    }
+
+    contextPrompt += `
+
+请根据用户描述生成相应的 DuckDB SQL 查询，直接返?SQL 语句，不要添加任何解释。`;
+
+    try {
+      const response = await runGeminiPrompt(naturalLanguage, {
+        systemInstruction: contextPrompt,
+        model: 'gemini-2.5-flash',
+        temperature: 0.1, // 降低随机性，确保SQL准确?
+        maxOutputTokens: 500
+      });
+
+      // 清理响应，提取纯SQL
+      const sql = response.trim()
+        .replace(/^```sql\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .replace(/^SQL:\s*/i, '')
+        .replace(/^\s*-\s*/, '')
+        .trim();
+
+      return {
+        sql,
+        confidence: 0.8, // 暂时固定置信?
+        explanation: conversationContext
+          ? `基于对话上下文生成的SQL查询`
+          : `基于"${naturalLanguage}"生成的SQL查询`
+      };
+    } catch (error) {
+      throw new Error(`NL2SQL转换失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  }, [conversationContext]);
+
+  // 执行SQL查询
+  const executeQuery = useCallback(async (sqlToExecute?: string) => {
+    const finalSQL = sqlToExecute || query.trim();
+    if (!finalSQL || isExecuting) return;
+
+    // 危险操作检?
+    if (isDangerousOperation(finalSQL)) {
+      const confirmed = window.confirm(
+        `⚠️ 危险操作确认\n\n此操作包含危险的SQL语句（如DELETE、DROP、TRUNCATE或ALTER），可能会修改或删除数据。\n\nSQL: ${finalSQL}\n\n是否继续执行？`
+      );
+
+      if (!confirmed) return;
+    }
+
+    const startTime = Date.now();
+    setIsExecuting(true);
+    setError(null);
+    setResult(null);
+    setShowConversionPreview(false);
+
+    try {
+      const sqlResult = await executeSQL(finalSQL);
+      const executionTime = Date.now() - startTime;
+
+      // 处理查询结果
+      const processedResult: QueryResult = {
+        columns: sqlResult.length > 0 ? Object.keys(sqlResult[0]) : [],
+        rows: sqlResult.map(row => Object.values(row)),
+        executionTime,
+        rowCount: sqlResult.length
+      };
+
+      setResult(processedResult);
+
+      // 添加到历史记录
+      const historyItem: SQLHistoryItem = {
+        id: `query_${Date.now()}`,
+        inputType: inputMode,
+        inputText: query.trim(),
+        generatedSQL: inputMode === 'natural' ? nl2sqlResult?.sql : undefined,
+        executedSQL: finalSQL,
+        timestamp: Date.now(),
+        executionTime,
+        resultCount: sqlResult.length,
+        success: true
+      };
+
+      setHistory(prev => [historyItem, ...prev.slice(0, 49)]); // 保留最近50条记录
+
+      // 保存到数据库
+      saveSQLHistory(historyItem);
+
+      // 更新对话上下?
+      setConversationContext({
+        lastQuery: finalSQL,
+        lastResult: sqlResult,
+        conversationHistory: [
+          ...(conversationContext?.conversationHistory || []),
+          {
+            type: 'user' as const,
+            message: inputMode === 'natural' ? query.trim() : `执行SQL: ${finalSQL}`,
+            timestamp: Date.now()
+          },
+          {
+            type: 'system' as const,
+            message: `查询成功，返?${sqlResult.length} 条记录`,
+            timestamp: Date.now()
+          }
+        ].slice(-10) // 保留最?0条对?
+      });
+
+    } catch (err) {
+      const executionTime = Date.now() - startTime;
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+      setError(errorMessage);
+
+      // 添加失败的查询到历史记录
+      const historyItem: SQLHistoryItem = {
+        id: `query_${Date.now()}`,
+        inputType: inputMode,
+        inputText: query.trim(),
+        generatedSQL: inputMode === 'natural' ? nl2sqlResult?.sql : undefined,
+        executedSQL: finalSQL,
+        timestamp: Date.now(),
+        executionTime,
+        success: false,
+        error: errorMessage
+      };
+
+      setHistory(prev => [historyItem, ...prev.slice(0, 49)]);
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [query, inputMode, nl2sqlResult, isExecuting, executeSQL, isDangerousOperation]);
+
+  // 处理NL2SQL转换
+  const handleNL2SQLConversion = useCallback(async () => {
+    if (!query.trim() || isConverting || inputMode !== 'natural') return;
+
+    setIsConverting(true);
+    setError(null);
+
+    try {
+      const result = await convertNaturalLanguageToSQL(query.trim());
+      setNl2sqlResult(result);
+      setShowConversionPreview(true);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'NL2SQL转换失败';
+      setError(errorMessage);
+    } finally {
+      setIsConverting(false);
+    }
+  }, [query, inputMode, isConverting, convertNaturalLanguageToSQL]);
+
+  // 确认执行转换后的SQL
+  const confirmExecuteConvertedSQL = useCallback(() => {
+    if (nl2sqlResult) {
+      executeQuery(nl2sqlResult.sql);
+    }
+  }, [nl2sqlResult, executeQuery]);
+
+  // 编辑转换后的SQL
+  const editConvertedSQL = useCallback(() => {
+    if (nl2sqlResult) {
+      setQuery(nl2sqlResult.sql);
+      setInputMode('sql');
+      setShowConversionPreview(false);
+      setNl2sqlResult(null);
+    }
+  }, [nl2sqlResult]);
+
+  // 清空结果
+  const clearResult = useCallback(() => {
+    setResult(null);
+    setError(null);
+    setNl2sqlResult(null);
+    setShowConversionPreview(false);
+    // 注意：不清空对话上下文，让用户可以继续追?
+  }, []);
+
+  // 从历史记录加载查?
+  const loadFromHistory = useCallback((historyItem: SQLHistoryItem) => {
+    setQuery(historyItem.inputText);
+    setInputMode(historyItem.inputType);
+    if (historyItem.generatedSQL) {
+      setNl2sqlResult({ sql: historyItem.generatedSQL, explanation: '从历史记录加载' });
+    } else {
+      setNl2sqlResult(null);
+    }
+    setSelectedHistoryIndex(-1);
+    setShowHistory(false);
+    setShowConversionPreview(false);
+    textareaRef.current?.focus();
+  }, []);
+
+  // 清空历史记录
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+  }, []);
+
+  // 添加到收藏
+  const addToFavorites = useCallback((sql: string, name?: string) => {
+    const favorite: FavoriteSQL = {
+      id: `fav_${Date.now()}`,
+      name: name || `收藏查询 ${favorites.length + 1}`,
+      sqlText: sql,
+      createdAt: Date.now(),
+      tags: []
+    };
+    setFavorites(prev => [favorite, ...prev]);
+
+    // 保存到数据库
+    saveSQLFavorite(favorite);
+  }, [favorites.length, saveSQLFavorite]);
+
+  // 从收藏中删除
+  const removeFromFavorites = useCallback((id: string) => {
+    setFavorites(prev => prev.filter(fav => fav.id !== id));
+
+    // 从数据库删除
+    deleteSQLFavorite(id);
+  }, [deleteSQLFavorite]);
+
+  // 重命名收藏
+  const renameFavorite = useCallback((id: string, newName: string) => {
+    setFavorites(prev => prev.map(fav =>
+      fav.id === id ? { ...fav, name: newName } : fav
+    ));
+
+    // 更新数据库
+    updateSQLFavoriteName(id, newName);
+  }, [updateSQLFavoriteName]);
+
+  // 加载收藏到查询框
+  const loadFavorite = useCallback((favorite: FavoriteSQL) => {
+    setQuery(favorite.sqlText);
+    setActiveTab('workbench'); // 切换到工作台TAB
+  }, []);
+
+  // 从历史记录添加收藏
+  const favoriteFromHistory = useCallback((historyItem: SQLHistoryItem) => {
+    addToFavorites(historyItem.executedSQL, `来自历史: ${historyItem.executedSQL.substring(0, 30)}...`);
+  }, [addToFavorites]);
+
+  // 快捷键处理
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (inputMode === 'natural') {
+        handleNL2SQLConversion();
+      } else {
+        executeQuery();
+      }
+    } else if (e.key === 'ArrowUp' && !showHistory && history.length > 0) {
+      e.preventDefault();
+      setSelectedHistoryIndex(0);
+      setShowHistory(true);
+    }
+  }, [executeQuery, handleNL2SQLConversion, inputMode, showHistory, history.length]);
+
+  // 常用查询模板
+  const queryTemplates = [
+    {
+      name: '查看所有提示词',
+      query: 'SELECT id, title, category, isFavorite, createdAt FROM prompts WHERE deletedAt IS NULL ORDER BY createdAt DESC LIMIT 10;'
+    },
+    {
+      name: '统计各分类数量',
+      query: 'SELECT category, COUNT(*) as count FROM prompts WHERE deletedAt IS NULL GROUP BY category ORDER BY count DESC;'
+    },
+    {
+      name: '查找收藏的提示词',
+      query: 'SELECT title, category, tags FROM prompts WHERE isFavorite = 1 AND deletedAt IS NULL;'
+    },
+    {
+      name: '最近创建的提示词',
+      query: 'SELECT title, category, createdAt FROM prompts WHERE deletedAt IS NULL ORDER BY createdAt DESC LIMIT 5;'
+    },
+    {
+      name: '搜索包含关键词的提示词',
+      query: 'SELECT title, content FROM prompts WHERE content LIKE \'%关键?\' AND deletedAt IS NULL;'
+    }
+  ];
+
+  // CRUD 操作模板
+  const crudTemplates = [
+    {
+      name: '创建新提示词',
+      query: `INSERT INTO prompts (id, title, content, category, tags, isFavorite, createdAt)
+VALUES ('custom_id_${Date.now()}', '新提示词标题', '提示词内?..', 'Code', '["标签1", "标签2"]', 0, ${Date.now()});`
+    },
+    {
+      name: '更新提示词',
+      query: `UPDATE prompts
+SET title = '更新后的标题', updatedAt = ${Date.now()}
+WHERE id = 'existing_id';`
+    },
+    {
+      name: '软删除提示词',
+      query: `UPDATE prompts SET deletedAt = ${Date.now()} WHERE id = 'prompt_id';`
+    },
+    {
+      name: '永久删除提示词',
+      query: 'DELETE FROM prompts WHERE id = \'prompt_id\';'
+    },
+    {
+      name: '设置提示词为收藏',
+      query: 'UPDATE prompts SET isFavorite = 1 WHERE id = \'prompt_id\';'
+    }
+  ];
+
+  // 格式化执行时?
+  const formatExecutionTime = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+  };
+
+  // 格式化时间戳
+  const formatTimestamp = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
+  // Early return for initialization
+  if (!isInitialized) {
+    return (
+      <div className={`bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden ${className}`}>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Icons.Database size={48} className="text-gray-600 mx-auto mb-4" />
+            <div className="text-gray-400">正在初始?DuckDB...</div>
+            {syncState.error && (
+              <div className="text-red-400 text-sm mt-2">{syncState.error}</div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden ${className}`}>
+      {/* Header */}
+      <div className="relative bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-blue-500/10 border-b border-white/10">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
+        <div className="relative flex items-center justify-between p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30">
+              <Icons.Database size={20} className="text-brand-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">DuckDB 数据控制台</h1>
+              <p className="text-sm text-gray-400">数据分析 • SQL 工作台 • 执行历史</p>
+            </div>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <Icons.Close size={20} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* TAB Navigation */}
+      <div className="bg-gray-900/60 border-b border-white/5">
+        <div className="flex">
+          {[
+            { id: 'analysis' as TabType, label: '💬 数据分析', icon: Icons.BarChart3 },
+            { id: 'workbench' as TabType, label: '📝 SQL 工作台', icon: Icons.Code },
+            { id: 'history' as TabType, label: '📁 历史 & 收藏', icon: Icons.History }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 px-4 text-sm font-medium transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'text-white bg-brand-500/20 border-b-2 border-brand-500'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 min-h-0">
+        {activeTab === 'workbench' && (
+          <div className="h-full flex flex-col">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gray-900/40">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowTableStructure(!showTableStructure)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-all ${
+                    showTableStructure
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                      : 'bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 border border-white/10'
+                  }`}
+                >
+                  <Icons.Table size={14} />
+                  📐 表结?
+                </button>
+
+                <div className="h-4 w-px bg-white/10"></div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">输入模式:</span>
+                  <div className="flex items-center bg-gray-800/60 rounded-lg p-1">
+                    <button
+                      onClick={() => setInputMode('sql')}
+                      className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-all ${
+                        inputMode === 'sql'
+                          ? 'bg-brand-500 text-white'
+                          : 'text-gray-300 hover:text-white hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <Icons.Code size={12} />
+                      SQL
+                    </button>
+                    <button
+                      onClick={() => setInputMode('natural')}
+                      className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-all ${
+                        inputMode === 'natural'
+                          ? 'bg-brand-500 text-white'
+                          : 'text-gray-300 hover:text-white hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <Icons.MessageCircle size={12} />
+                      自然语言
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={executeQuery}
+                  disabled={!query.trim() || isExecuting}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-all duration-200 transform hover:scale-105"
+                >
+                  {isExecuting ? (
+                    <Icons.Loader size={14} className="animate-spin" />
+                  ) : (
+                    <Icons.Play size={14} />
+                  )}
+                  {isExecuting ? '执行?..' : '▶️ 执行'}
+                </button>
+              </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex min-h-0">
+              {/* Table Structure Sidebar */}
+              {showTableStructure && (
+                <div className="w-64 border-r border-white/5 bg-gray-900/40 p-4">
+                  <h3 className="text-sm font-semibold text-gray-200 mb-3">📐 表结?/h3>
+                  <div className="space-y-3">
+                    <div className="bg-gray-800/50 rounded-lg p-3">
+                      <h4 className="text-xs font-medium text-gray-300 mb-2">📋 prompts</h4>
+                      <div className="text-xs text-gray-400 space-y-1">
+                        <div>• id (INTEGER, PK)</div>
+                        <div>• title (TEXT)</div>
+                        <div>• content (TEXT)</div>
+                        <div>• tags (TEXT)</div>
+                        <div>• category (TEXT)</div>
+                        <div>• isFavorite (INTEGER)</div>
+                        <div>• createdAt (INTEGER)</div>
+                        <div>• updatedAt (INTEGER)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SQL Editor and Results */}
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* SQL Editor */}
+                <div className="p-4 border-b border-white/5">
+                  <div className="space-y-3">
+                    <textarea
+                      ref={textareaRef}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        inputMode === 'natural'
+                          ? "描述你想要查询的内容，例如：\n- 显示所有代码相关的提示词\n- 查找包含AI标签的收藏提示词\n- 统计各分类的提示词数?
+                          : "输入 DuckDB SQL 查询..."
+                      }
+                      className="w-full h-32 bg-gray-800 border border-white/10 rounded-lg p-3 text-gray-200 font-mono text-sm resize-none focus:outline-none focus:border-brand-500/50"
+                      disabled={isExecuting || isConverting}
+                    />
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={clearResult}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-sm rounded transition-colors"
+                        >
+                          <Icons.Trash size={14} />
+                          🗑 清空
+                        </button>
+
+                        <button
+                          onClick={() => {/* TODO: Add to favorites */}}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-yellow-700 hover:bg-yellow-600 text-yellow-300 hover:text-white text-sm rounded transition-colors"
+                        >
+                          <Icons.Star size={14} />
+?收藏
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-gray-500">
+                        Ctrl+Enter 执行查询
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results Area */}
+                <div className="flex-1 overflow-hidden">
+                  {error && (
+                    <div className="p-4 bg-red-900/20 border-l-4 border-red-500">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Icons.Error size={16} className="text-red-400" />
+                        <span className="text-red-400 font-semibold">执行失败</span>
+                      </div>
+                      <div className="text-red-300 text-sm font-mono bg-red-900/10 p-3 rounded border border-red-500/20">
+                        {error}
+                      </div>
+                      <div className="text-red-400/70 text-xs mt-2">
+                        请检?SQL 语法或尝试其他查?
+                      </div>
+                    </div>
+                  )}
+
+                  {result && (
+                    <div className="h-full flex flex-col">
+                      {/* Results Header */}
+                      <div className="flex items-center justify-between p-3 bg-gray-800/50 border-b border-white/5">
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-green-400 flex items-center gap-1">
+                            <Icons.Check size={14} />
+                            执行成功
+                          </span>
+                          {result.columns.length > 0 ? (
+                            <>
+                              <span className="text-gray-400">
+                                {result.rowCount} ?× {result.columns.length} ?
+                              </span>
+                              <span className="text-gray-400">
+                                执行时间: {formatExecutionTime(result.executionTime)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-blue-400">
+                              执行时间: {formatExecutionTime(result.executionTime)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {result.columns.length > 0 && (
+                            <button
+                              onClick={() => navigator.clipboard.writeText(JSON.stringify(result.rows, null, 2))}
+                              className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+                            >
+                              <Icons.Copy size={14} />
+                              复制结果
+                            </button>
+                          )}
+                          <button
+                            onClick={() => navigator.clipboard.writeText(
+                              result.columns.length > 0
+                                ? JSON.stringify(result.rows, null, 2)
+                                : `执行成功${result.rowCount > 0 ? `，影?${result.rowCount} 行` : ''}`
+                            )}
+                            className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+                          >
+                            <Icons.Copy size={14} />
+                            复制摘要
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Results Table */}
+                      <div className="flex-1 overflow-auto">
+                        {result.columns.length === 0 ? (
+                          <div className="p-8 text-center">
+                            <div className="text-green-400 mb-2">
+                              <Icons.Check size={24} className="mx-auto" />
+                            </div>
+                            <div className="text-gray-300 font-medium mb-1">
+                              {result.rowCount === 0 ? '查询成功，返回 0 条记录' : `执行成功${result.rowCount > 0 ? `，影响 ${result.rowCount} 行` : ''}`}
+                            </div>
+                            <div className="text-gray-500 text-sm">
+                              执行时间: {formatExecutionTime(result.executionTime)}
+                            </div>
+                          </div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-800/30 sticky top-0">
+                              <tr>
+                                {result.columns.map((column, index) => (
+                                  <th
+                                    key={index}
+                                    className="px-3 py-2 text-left text-gray-300 font-semibold border-r border-white/5 last:border-r-0 hover:bg-gray-700/30 transition-colors cursor-pointer group"
+                                    title={`点击排序: ${column}`}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      {column}
+                                      <Icons.ChevronDown size={12} className="text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {result.rows.map((row, rowIndex) => (
+                                <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/5">
+                                  {row.map((cell: any, cellIndex: number) => {
+                                    const cellText = cell === null || cell === undefined ? 'NULL' : String(cell);
+                                    const isLongText = cellText.length > 50;
+
+                                    return (
+                                      <td
+                                        key={cellIndex}
+                                        className="px-3 py-2 text-gray-200 border-r border-white/5 last:border-r-0 max-w-xs"
+                                      >
+                                        {cell === null || cell === undefined ? (
+                                          <span className="text-gray-500 italic">NULL</span>
+                                        ) : typeof cell === 'boolean' ? (
+                                          <span className={cell ? 'text-green-400' : 'text-red-400'}>
+                                            {cell ? 'TRUE' : 'FALSE'}
+                                          </span>
+                                        ) : isLongText ? (
+                                          <div className="truncate" title={cellText}>
+                                            {cellText.substring(0, 50)}...
+                                            <button
+                                              className="ml-1 text-blue-400 hover:text-blue-300 text-xs"
+                                              title="点击查看完整内容"
+                                            >
+                                              [展开]
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <span className={typeof cell === 'number' ? 'text-blue-300' : ''}>
+                                            {cellText}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!result && !error && (
+                    <div className="p-8 text-center text-gray-500 h-full flex items-center justify-center">
+                      <div>
+                        <Icons.Database size={48} className="text-gray-600 mx-auto mb-4" />
+                        <div>输入 SQL 查询并点击执行，或选择一个查询模板</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'analysis' && (
+          <div className="h-full flex flex-col p-6">
+            <div className="text-center py-12">
+              <Icons.BarChart3 size={48} className="text-gray-600 mx-auto mb-4" />
+              <div className="text-gray-400">数据分析功能开发中...</div>
+              <div className="text-sm text-gray-500 mt-2">即将支持文件上传和AI驱动的数据分?/div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="h-full flex flex-col">
+            {/* Sub-tabs */}
+            <div className="flex border-b border-white/5">
+              <button className="flex-1 py-3 px-4 text-sm font-medium text-white bg-brand-500/20 border-b-2 border-brand-500">
+                🕐 历史记录
+              </button>
+              <button className="flex-1 py-3 px-4 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+?我的收藏
+              </button>
+            </div>
+
+            {/* History List */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-white/5">
+                {history.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <Icons.History size={48} className="text-gray-600 mx-auto mb-4" />
+                    <div>暂无执行历史</div>
+                  </div>
+                ) : (
+                  history.map((item, index) => (
+                    <div key={item.id} className="p-4 hover:bg-white/5 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            item.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {item.inputType === 'natural' ? '自然语言' : 'SQL'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatTimestamp(item.timestamp)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.success ? (
+                            <Icons.Check size={14} className="text-green-400" />
+                          ) : (
+                            <Icons.Error size={14} className="text-red-400" />
+                          )}
+                          <button className="text-gray-400 hover:text-white text-xs">↗️</button>
+                          <button className="text-gray-400 hover:text-yellow-400 text-xs">?/button>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-300 mb-1">
+                        {item.executedSQL.length > 100 ? `${item.executedSQL.substring(0, 100)}...` : item.executedSQL}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {item.resultCount !== undefined ? `${item.resultCount} 行` : '执行完成'}
+                        {item.executionTime && ` · ${formatExecutionTime(item.executionTime)}`}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+        <div className="flex-1 p-4 border-b border-white/5">
+          <div className="space-y-3">
+            {/* 操作按钮 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {/* 输入模式切换 */}
+                <div className="flex items-center bg-gray-700 rounded-lg p-1">
+                  <button
+                    onClick={() => {
+                      setInputMode('sql');
+                      setNl2sqlResult(null);
+                      setShowConversionPreview(false);
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded transition-colors ${
+                      inputMode === 'sql'
+                        ? 'bg-brand-500 text-white'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    <Icons.Code size={12} />
+                    SQL
+                  </button>
+                  <button
+                    onClick={() => {
+                      setInputMode('natural');
+                      setNl2sqlResult(null);
+                      setShowConversionPreview(false);
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded transition-colors ${
+                      inputMode === 'natural'
+                        ? 'bg-brand-500 text-white'
+                        : 'text-gray-300 hover:text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    <Icons.Info size={12} />
+                    自然语言
+                  </button>
+                </div>
+
+                {/* 执行按钮 */}
+                {inputMode === 'natural' ? (
+                  <button
+                    onClick={handleNL2SQLConversion}
+                    disabled={!query.trim() || isConverting}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded transition-colors"
+                  >
+                    {isConverting ? (
+                      <Icons.Loader size={14} className="animate-spin" />
+                    ) : (
+                      <Icons.Magic size={14} />
+                    )}
+                    {isConverting ? '转换?..' : '转换为SQL'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => executeQuery()}
+                    disabled={!query.trim() || isExecuting}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded transition-colors"
+                  >
+                    {isExecuting ? (
+                      <Icons.Loader size={14} className="animate-spin" />
+                    ) : (
+                      <Icons.Run size={14} />
+                    )}
+                    {isExecuting ? '执行?..' : '执行'}
+                  </button>
+                )}
+
+                <button
+                  onClick={clearResult}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-sm rounded transition-colors"
+                >
+                  <Icons.Trash size={14} />
+                  清空
+                </button>
+
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-sm rounded transition-colors"
+                >
+                  <Icons.History size={14} />
+                  历史 ({history.length})
+                </button>
+              </div>
+
+              <div className="text-xs text-gray-500">
+                {inputMode === 'natural' ? 'Ctrl+Enter 转换为SQL' : 'Ctrl+Enter 执行查询'}
+              </div>
+            </div>
+
+            {/* 查询输入?*/}
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  inputMode === 'natural'
+                    ? "描述你想要查询的内容，例如：\n- 显示所有代码相关的提示词\n- 查找包含AI标签的收藏提示词\n- 统计各分类的提示词数?
+                    : "输入 DuckDB SQL 查询..."
+                }
+                className="w-full h-32 bg-gray-800 border border-white/10 rounded p-3 text-gray-200 font-mono text-sm resize-none focus:outline-none focus:border-brand-500/50"
+                disabled={isExecuting || isConverting}
+              />
+
+              {/* 查询模板 */}
+              <div className="absolute top-2 right-2 flex gap-1">
+                <div className="relative group">
+                  <button className="text-gray-500 hover:text-gray-300 text-xs px-2 py-1 bg-gray-700/50 rounded">
+                    查询
+                  </button>
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-gray-800 border border-white/10 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                    <div className="p-2">
+                      <div className="text-xs text-gray-400 mb-2">查询模板</div>
+                      {queryTemplates.map((template, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setQuery(template.query)}
+                          className="w-full text-left text-xs text-gray-300 hover:text-white hover:bg-gray-700/50 p-2 rounded transition-colors"
+                        >
+                          {template.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative group">
+                  <button className="text-gray-500 hover:text-gray-300 text-xs px-2 py-1 bg-gray-700/50 rounded">
+                    CRUD
+                  </button>
+                  <div className="absolute right-0 top-full mt-1 w-72 bg-gray-800 border border-white/10 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                    <div className="p-2">
+                      <div className="text-xs text-gray-400 mb-2">CRUD 操作模板</div>
+                      {crudTemplates.map((template, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setQuery(template.query)}
+                          className="w-full text-left text-xs text-gray-300 hover:text-white hover:bg-gray-700/50 p-2 rounded transition-colors"
+                        >
+                          {template.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 对话上下?*/}
+            {conversationContext && conversationContext.conversationHistory.length > 0 && (
+              <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Icons.Info size={14} className="text-blue-400" />
+                    <span className="text-blue-300 text-sm font-medium">对话上下?/span>
+                  </div>
+                  <button
+                    onClick={() => setConversationContext(null)}
+                    className="text-gray-400 hover:text-white text-xs"
+                  >
+                    清空上下?
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-20 overflow-y-auto">
+                  {conversationContext.conversationHistory.slice(-4).map((item, index) => (
+                    <div key={index} className="text-xs">
+                      <span className={item.type === 'user' ? 'text-blue-300' : 'text-green-300'}>
+                        {item.type === 'user' ? '? : '系统'}:
+                      </span>
+                      <span className="text-gray-300 ml-1">{item.message}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  后续查询将基于此上下文理解你的意?
+                </div>
+              </div>
+            )}
+
+            {/* NL2SQL 转换预览 */}
+            {showConversionPreview && nl2sqlResult && (
+              <div className="bg-gray-800/50 border border-purple-500/30 rounded-lg p-4 mt-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Icons.Magic size={16} className="text-purple-400" />
+                    <span className="text-purple-300 font-medium">NL2SQL 转换结果</span>
+                    {nl2sqlResult.confidence && (
+                      <span className="text-xs text-gray-400">
+                        置信? {Math.round(nl2sqlResult.confidence * 100)}%
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowConversionPreview(false)}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <Icons.Close size={14} />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1">自然语言意图?/div>
+                    <div className="text-gray-200 bg-gray-900/50 p-2 rounded text-sm">
+                      {query}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1">生成的SQL?/div>
+                    <div className="bg-gray-900 p-3 rounded font-mono text-sm text-green-300 border border-gray-600">
+                      {nl2sqlResult.sql}
+                    </div>
+                  </div>
+
+                  {nl2sqlResult.explanation && (
+                    <div className="text-xs text-gray-500">
+                      {nl2sqlResult.explanation}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      onClick={confirmExecuteConvertedSQL}
+                      disabled={isExecuting}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white text-sm rounded transition-colors"
+                    >
+                      {isExecuting ? (
+                        <Icons.Loader size={14} className="animate-spin" />
+                      ) : (
+                        <Icons.Play size={14} />
+                      )}
+                      执行SQL
+                    </button>
+
+                    <button
+                      onClick={editConvertedSQL}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+                    >
+                      <Icons.Edit size={14} />
+                      编辑SQL
+                    </button>
+
+                    <button
+                      onClick={() => setShowConversionPreview(false)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-gray-300 hover:text-white text-sm rounded transition-colors"
+                    >
+                      <Icons.Close size={14} />
+                      取消
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 查询历史 */}
+            {showHistory && history.length > 0 && (
+              <div
+                ref={historyRef}
+                className="bg-gray-800 border border-white/10 rounded max-h-40 overflow-y-auto"
+              >
+                <div className="flex items-center justify-between p-2 border-b border-white/10">
+                  <span className="text-sm text-gray-300">查询历史</span>
+                  <button
+                    onClick={clearHistory}
+                    className="text-xs text-red-400 hover:text-red-300"
+                  >
+                    清空历史
+                  </button>
+                </div>
+                {history.map((item, index) => (
+                  <button
+                    key={item.id}
+                    onClick={() => loadFromHistory(item)}
+                    className={`w-full text-left p-2 hover:bg-gray-700/50 transition-colors ${
+                      selectedHistoryIndex === index ? 'bg-brand-500/20' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 truncate">
+                        <div className="text-sm text-gray-200 truncate">
+                          <span className={item.inputType === 'natural' ? 'text-purple-300' : 'text-blue-300'}>
+                            [{item.inputType === 'natural' ? '自然语言' : 'SQL'}]
+                          </span> {item.inputText}
+                          {item.generatedSQL && (
+                            <span className="text-green-300 block text-xs mt-1">
+?{item.generatedSQL}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 flex items-center gap-2">
+                          <span>{formatTimestamp(item.timestamp)}</span>
+                          {item.executionTime && (
+                            <span>{formatExecutionTime(item.executionTime)}</span>
+                          )}
+                          {item.resultCount !== undefined && (
+                            <span>{item.resultCount} ?/span>
+                          )}
+                          {item.inputType === 'natural' && (
+                            <span className="text-purple-400">NL2SQL</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        {item.success ? (
+                          <Icons.Check size={12} className="text-green-400" />
+                        ) : (
+                          <Icons.Error size={12} className="text-red-400" />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 结果显示区域 */}
+        <div className="flex-1 overflow-hidden">
+          {error && (
+            <div className="p-4 bg-red-900/20 border-l-4 border-red-500">
+              <div className="flex items-center gap-2 mb-2">
+                <Icons.Error size={16} className="text-red-400" />
+                <span className="text-red-400 font-semibold">执行失败</span>
+              </div>
+              <div className="text-red-300 text-sm font-mono bg-red-900/10 p-3 rounded border border-red-500/20">
+                {error}
+              </div>
+              <div className="text-red-400/70 text-xs mt-2">
+                请检?SQL 语法或尝试其他查?
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div className="h-full flex flex-col">
+              {/* 结果头部信息 */}
+              <div className="flex items-center justify-between p-3 bg-gray-800/50 border-b border-white/5">
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-green-400 flex items-center gap-1">
+                    <Icons.Check size={14} />
+                    执行成功
+                  </span>
+                  {result.columns.length > 0 ? (
+                    <>
+                  <span className="text-gray-400">
+                    {result.rowCount} ?× {result.columns.length} ?
+                  </span>
+                  {result.columns.length > 0 && result.rows.length > 0 && (
+                    <span className="text-gray-400">
+                      数据大小: ~{Math.round(JSON.stringify(result.rows).length / 1024)}KB
+                    </span>
+                  )}
+                  <span className="text-gray-400">
+                    执行时间: {formatExecutionTime(result.executionTime)}
+                  </span>
+                    </>
+                  ) : (
+                    <span className="text-blue-400">
+                      执行时间: {formatExecutionTime(result.executionTime)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {result.columns.length > 0 && (
+                    <button
+                      onClick={() => navigator.clipboard.writeText(JSON.stringify(result.rows, null, 2))}
+                      className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+                    >
+                      <Icons.Copy size={14} />
+                      复制结果
+                    </button>
+                  )}
+                  <button
+                    onClick={() => navigator.clipboard.writeText(
+                      result.columns.length > 0
+                        ? JSON.stringify(result.rows, null, 2)
+                        : `执行成功${result.rowCount > 0 ? `，影?${result.rowCount} 行` : ''}`
+                    )}
+                    className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+                  >
+                    <Icons.Copy size={14} />
+                    复制摘要
+                  </button>
+                </div>
+              </div>
+
+              {/* 结果表格 */}
+              <div className="flex-1 overflow-auto">
+                {result.columns.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <div className="text-green-400 mb-2">
+                      <Icons.Check size={24} className="mx-auto" />
+                    </div>
+                    <div className="text-gray-300 font-medium mb-1">
+                      {result.rowCount === 0 ? '查询成功，返?0 条记? : `执行成功${result.rowCount > 0 ? `，影?${result.rowCount} 行` : ''}`}
+                    </div>
+                    <div className="text-gray-500 text-sm">
+                      执行时间: {formatExecutionTime(result.executionTime)}
+                    </div>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-800/30 sticky top-0">
+                      <tr>
+                        {result.columns.map((column, index) => (
+                          <th
+                            key={index}
+                            className="px-3 py-2 text-left text-gray-300 font-semibold border-r border-white/5 last:border-r-0 hover:bg-gray-700/30 transition-colors cursor-pointer group"
+                            title={`点击排序: ${column}`}
+                          >
+                            <div className="flex items-center gap-1">
+                              {column}
+                              <Icons.ChevronDown size={12} className="text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.rows.map((row, rowIndex) => (
+                        <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/5">
+                          {row.map((cell: any, cellIndex: number) => {
+                            const cellText = cell === null || cell === undefined ? 'NULL' : String(cell);
+                            const isLongText = cellText.length > 50;
+
+                            return (
+                              <td
+                                key={cellIndex}
+                                className="px-3 py-2 text-gray-200 border-r border-white/5 last:border-r-0 max-w-xs"
+                              >
+                                {cell === null || cell === undefined ? (
+                                  <span className="text-gray-500 italic">NULL</span>
+                                ) : typeof cell === 'boolean' ? (
+                                  <span className={cell ? 'text-green-400' : 'text-red-400'}>
+                                    {cell ? 'TRUE' : 'FALSE'}
+                                  </span>
+                                ) : isLongText ? (
+                                  <div className="truncate" title={cellText}>
+                                    {cellText.substring(0, 50)}...
+                                    <button
+                                      className="ml-1 text-blue-400 hover:text-blue-300 text-xs"
+                                      title="点击查看完整内容"
+                                    >
+                                      [展开]
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={typeof cell === 'number' ? 'text-blue-300' : ''}>
+                                    {cellText}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!result && !error && (
+            <div className="p-8 text-center text-gray-500 h-full flex items-center justify-center">
+              <div>
+                <Icons.Database size={48} className="text-gray-600 mx-auto mb-4" />
+                <div>输入 SQL 查询并点击执行，或选择一个查询模?/div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden ${className}`}>
+      {/* Header */}
+      <div className="relative bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-blue-500/10 border-b border-white/10">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
+        <div className="relative flex items-center justify-between p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30">
+              <Icons.Database size={20} className="text-brand-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white">DuckDB 数据控制台</h1>
+              <p className="text-sm text-gray-400">数据分析 • SQL 工作台 • 执行历史</p>
+            </div>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <Icons.Close size={20} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* TAB Navigation */}
+      <div className="bg-gray-900/60 border-b border-white/5">
+        <div className="flex">
+          {[
+            { id: 'analysis' as TabType, label: '💬 数据分析', icon: Icons.BarChart3 },
+            { id: 'workbench' as TabType, label: '📝 SQL 工作台', icon: Icons.Code },
+            { id: 'history' as TabType, label: '📁 历史 & 收藏', icon: Icons.History }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 px-4 text-sm font-medium transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'text-white bg-brand-500/20 border-b-2 border-brand-500'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 min-h-0">
+        {activeTab === 'workbench' && (
+          <div className="h-full flex flex-col">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between p-4 border-b border-white/5 bg-gray-900/40">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowTableStructure(!showTableStructure)}
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg transition-all ${
+                    showTableStructure
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                      : 'bg-gray-800/60 hover:bg-gray-700/60 text-gray-300 border border-white/10'
+                  }`}
+                >
+                  <Icons.Table size={14} />
+                  📐 表结构
+                </button>
+
+                <div className="h-4 w-px bg-white/10"></div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">输入模式:</span>
+                  <div className="flex items-center bg-gray-800/60 rounded-lg p-1">
+                    <button
+                      onClick={() => setInputMode('sql')}
+                      className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-all ${
+                        inputMode === 'sql'
+                          ? 'bg-brand-500 text-white'
+                          : 'text-gray-300 hover:text-white hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <Icons.Code size={12} />
+                      SQL
+                    </button>
+                    <button
+                      onClick={() => setInputMode('natural')}
+                      className={`flex items-center gap-1 px-3 py-1 text-xs rounded transition-all ${
+                        inputMode === 'natural'
+                          ? 'bg-brand-500 text-white'
+                          : 'text-gray-300 hover:text-white hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <Icons.MessageCircle size={12} />
+                      自然语言
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={executeQuery}
+                  disabled={!query.trim() || isExecuting}
+                  className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm rounded-lg transition-all duration-200 transform hover:scale-105"
+                >
+                  {isExecuting ? (
+                    <Icons.Loader size={14} className="animate-spin" />
+                  ) : (
+                    <Icons.Play size={14} />
+                  )}
+                  {isExecuting ? '执行中...' : '▶️ 执行'}
+                </button>
+              </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex min-h-0">
+              {/* Table Structure Sidebar */}
+              {showTableStructure && (
+                <div className="w-64 border-r border-white/5 bg-gray-900/40 p-4">
+                  <h3 className="text-sm font-semibold text-gray-200 mb-3">📐 表结构</h3>
+                  <div className="space-y-3">
+                    <div className="bg-gray-800/50 rounded-lg p-3">
+                      <h4 className="text-xs font-medium text-gray-300 mb-2">📋 prompts</h4>
+                      <div className="text-xs text-gray-400 space-y-1">
+                        <div>• id (INTEGER, PK)</div>
+                        <div>• title (TEXT)</div>
+                        <div>• content (TEXT)</div>
+                        <div>• tags (TEXT)</div>
+                        <div>• category (TEXT)</div>
+                        <div>• isFavorite (INTEGER)</div>
+                        <div>• createdAt (INTEGER)</div>
+                        <div>• updatedAt (INTEGER)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SQL Editor and Results */}
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* SQL Editor */}
+                <div className="p-4 border-b border-white/5">
+                  <div className="space-y-3">
+                    <textarea
+                      ref={textareaRef}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        inputMode === 'natural'
+                          ? "描述你想要查询的内容，例如：\n- 显示所有代码相关的提示词\n- 查找包含AI标签的收藏提示词\n- 统计各分类的提示词数量"
+                          : "输入 DuckDB SQL 查询..."
+                      }
+                      className="w-full h-32 bg-gray-800 border border-white/10 rounded-lg p-3 text-gray-200 font-mono text-sm resize-none focus:outline-none focus:border-brand-500/50"
+                      disabled={isExecuting || isConverting}
+                    />
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={clearResult}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-sm rounded transition-colors"
+                        >
+                          <Icons.Trash size={14} />
+                          🗑 清空
+                        </button>
+
+                        <button
+                          onClick={() => {/* TODO: Add to favorites */}}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-yellow-700 hover:bg-yellow-600 text-yellow-300 hover:text-white text-sm rounded transition-colors"
+                        >
+                          <Icons.Star size={14} />
+                          ⭐ 收藏
+                        </button>
+                      </div>
+
+                      <div className="text-xs text-gray-500">
+                        Ctrl+Enter 执行查询
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results Area */}
+                <div className="flex-1 overflow-hidden">
+                  {error && (
+                    <div className="p-4 bg-red-900/20 border-l-4 border-red-500">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Icons.Error size={16} className="text-red-400" />
+                        <span className="text-red-400 font-semibold">执行失败</span>
+                      </div>
+                      <div className="text-red-300 text-sm font-mono bg-red-900/10 p-3 rounded border border-red-500/20">
+                        {error}
+                      </div>
+                      <div className="text-red-400/70 text-xs mt-2">
+                        请检查 SQL 语法或尝试其他查询
+                      </div>
+                    </div>
+                  )}
+
+                  {result && (
+                    <div className="h-full flex flex-col">
+                      {/* Results Header */}
+                      <div className="flex items-center justify-between p-3 bg-gray-800/50 border-b border-white/5">
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-green-400 flex items-center gap-1">
+                            <Icons.Check size={14} />
+                            执行成功
+                          </span>
+                          {result.columns.length > 0 ? (
+                            <>
+                              <span className="text-gray-400">
+                                {result.rowCount} 行 × {result.columns.length} 列
+                              </span>
+                              <span className="text-gray-400">
+                                执行时间: {formatExecutionTime(result.executionTime)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-blue-400">
+                              执行时间: {formatExecutionTime(result.executionTime)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {result.columns.length > 0 && (
+                            <button
+                              onClick={() => navigator.clipboard.writeText(JSON.stringify(result.rows, null, 2))}
+                              className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+                            >
+                              <Icons.Copy size={14} />
+                              复制结果
+                            </button>
+                          )}
+                          <button
+                            onClick={() => navigator.clipboard.writeText(
+                              result.columns.length > 0
+                                ? JSON.stringify(result.rows, null, 2)
+                                : `执行成功${result.rowCount > 0 ? `，影响 ${result.rowCount} 行` : ''}`
+                            )}
+                            className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+                          >
+                            <Icons.Copy size={14} />
+                            复制摘要
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Results Table */}
+                      <div className="flex-1 overflow-auto">
+                        {result.columns.length === 0 ? (
+                          <div className="p-8 text-center">
+                            <div className="text-green-400 mb-2">
+                              <Icons.Check size={24} className="mx-auto" />
+                            </div>
+                            <div className="text-gray-300 font-medium mb-1">
+                              {result.rowCount === 0 ? '查询成功，返回 0 条记录' : `执行成功${result.rowCount > 0 ? `，影响 ${result.rowCount} 行` : ''}`}
+                            </div>
+                            <div className="text-gray-500 text-sm">
+                              执行时间: {formatExecutionTime(result.executionTime)}
+                            </div>
+                          </div>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-800/30 sticky top-0">
+                              <tr>
+                                {result.columns.map((column, index) => (
+                                  <th
+                                    key={index}
+                                    className="px-3 py-2 text-left text-gray-300 font-semibold border-r border-white/5 last:border-r-0 hover:bg-gray-700/30 transition-colors cursor-pointer group"
+                                    title={`点击排序: ${column}`}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      {column}
+                                      <Icons.ChevronDown size={12} className="text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {result.rows.map((row, rowIndex) => (
+                                <tr key={rowIndex} className="border-b border-white/5 hover:bg-white/5">
+                                  {row.map((cell: any, cellIndex: number) => {
+                                    const cellText = cell === null || cell === undefined ? 'NULL' : String(cell);
+                                    const isLongText = cellText.length > 50;
+
+                                    return (
+                                      <td
+                                        key={cellIndex}
+                                        className="px-3 py-2 text-gray-200 border-r border-white/5 last:border-r-0 max-w-xs"
+                                      >
+                                        {cell === null || cell === undefined ? (
+                                          <span className="text-gray-500 italic">NULL</span>
+                                        ) : typeof cell === 'boolean' ? (
+                                          <span className={cell ? 'text-green-400' : 'text-red-400'}>
+                                            {cell ? 'TRUE' : 'FALSE'}
+                                          </span>
+                                        ) : isLongText ? (
+                                          <div className="truncate" title={cellText}>
+                                            {cellText.substring(0, 50)}...
+                                            <button
+                                              className="ml-1 text-blue-400 hover:text-blue-300 text-xs"
+                                              title="点击查看完整内容"
+                                            >
+                                              [展开]
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <span className={typeof cell === 'number' ? 'text-blue-300' : ''}>
+                                            {cellText}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {!result && !error && (
+                    <div className="p-8 text-center text-gray-500 h-full flex items-center justify-center">
+                      <div>
+                        <Icons.Database size={48} className="text-gray-600 mx-auto mb-4" />
+                        <div>输入 SQL 查询并点击执行，或选择一个查询模板</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'analysis' && (
+          <div className="h-full flex flex-col p-6">
+            <div className="text-center py-12">
+              <Icons.BarChart3 size={48} className="text-gray-600 mx-auto mb-4" />
+              <div className="text-gray-400">数据分析功能开发中...</div>
+              <div className="text-sm text-gray-500 mt-2">即将支持文件上传和AI驱动的数据分析</div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="h-full flex flex-col">
+            {/* Sub-tabs */}
+            <div className="flex border-b border-white/5">
+              <button className="flex-1 py-3 px-4 text-sm font-medium text-white bg-brand-500/20 border-b-2 border-brand-500">
+                🕐 历史记录
+              </button>
+              <button className="flex-1 py-3 px-4 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                ⭐ 我的收藏
+              </button>
+            </div>
+
+            {/* History List */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-white/5">
+                {history.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <Icons.History size={48} className="text-gray-600 mx-auto mb-4" />
+                    <div>暂无执行历史</div>
+                  </div>
+                ) : (
+                  history.map((item, index) => (
+                    <div key={item.id} className="p-4 hover:bg-white/5 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            item.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {item.inputType === 'natural' ? '自然语言' : 'SQL'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatTimestamp(item.timestamp)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.success ? (
+                            <Icons.Check size={14} className="text-green-400" />
+                          ) : (
+                            <Icons.Error size={14} className="text-red-400" />
+                          )}
+                          <button className="text-gray-400 hover:text-white text-xs">↗️</button>
+                          <button className="text-gray-400 hover:text-yellow-400 text-xs">⭐</button>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-300 mb-1">
+                        {item.executedSQL.length > 100 ? `${item.executedSQL.substring(0, 100)}...` : item.executedSQL}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {item.resultCount !== undefined ? `${item.resultCount} 行` : '执行完成'}
+                        {item.executionTime && ` · ${formatExecutionTime(item.executionTime)}`}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );

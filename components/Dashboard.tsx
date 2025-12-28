@@ -1,21 +1,18 @@
 import React, { useMemo } from 'react';
 import { Prompt } from '../types';
 import { Icons, getIconForCategory, getColorForCategory } from './Icons';
+import { LAYOUT } from './ui/styleTokens';
 
 interface DashboardProps {
   prompts: Prompt[];
   onOpenPrompt: (prompt: Prompt) => void;
-  onNavigateToCategory: (category: string) => void;
-  onNavigateToTag: (tag: string) => void;
 }
 
 // Unified card styles for consistent spacing
 
 const DashboardComponent: React.FC<DashboardProps> = ({
   prompts,
-  onOpenPrompt,
-  onNavigateToCategory,
-  onNavigateToTag
+  onOpenPrompt
 }) => {
   const stats = useMemo(() => {
     const total = prompts.length;
@@ -207,12 +204,18 @@ const DashboardComponent: React.FC<DashboardProps> = ({
   const maxActivity = Math.max(...stats.activityData, 1);
 
   return (
-    <div className="p-8 animate-slide-up-fade pb-20 overflow-y-auto h-full custom-scrollbar">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className={`${LAYOUT.spacing.page} animate-slide-up-fade pb-20 overflow-y-auto h-full custom-scrollbar`}>
+        <div className={`w-9/10 mx-auto ${LAYOUT.spacing.section}`}>
         
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        </div>
+
+
         {/* Header Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 relative overflow-hidden group hover:border-brand-500/30 transition-all hover:shadow-lg hover:shadow-brand-500/10">
+        <div className={`grid ${LAYOUT.grid.stats} gap-4`}>
+            <div className={`bg-gray-900/40 border border-white/5 rounded-theme ${LAYOUT.spacing.component} relative overflow-hidden group hover:border-brand-500/30 transition-all ${LAYOUT.elevation.low}`}>
                 <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <Icons.All size={80} />
                 </div>
@@ -230,7 +233,7 @@ const DashboardComponent: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 relative overflow-hidden group hover:border-yellow-500/30 transition-all hover:shadow-lg hover:shadow-yellow-500/10">
+            <div className={`bg-gray-900/40 border border-white/5 rounded-theme ${LAYOUT.spacing.component} relative overflow-hidden group hover:border-yellow-500/30 transition-all ${LAYOUT.elevation.low}`}>
                  <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <Icons.Star size={80} />
                 </div>
@@ -248,7 +251,7 @@ const DashboardComponent: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 relative overflow-hidden group hover:border-blue-500/30 transition-all">
+            <div className={`bg-gray-900/40 border border-white/5 rounded-theme ${LAYOUT.spacing.component} relative overflow-hidden group hover:border-blue-500/30 transition-all ${LAYOUT.elevation.low}`}>
                  <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <Icons.Run size={80} />
                 </div>
@@ -265,7 +268,7 @@ const DashboardComponent: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 relative overflow-hidden group hover:border-green-500/30 transition-all">
+            <div className={`bg-gray-900/40 border border-white/5 rounded-theme ${LAYOUT.spacing.component} relative overflow-hidden group hover:border-green-500/30 transition-all ${LAYOUT.elevation.low}`}>
                  <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                     <Icons.Activity size={80} />
                 </div>
@@ -291,7 +294,7 @@ const DashboardComponent: React.FC<DashboardProps> = ({
         </div>
 
         {/* Enhanced Statistics Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`grid ${LAYOUT.grid.metrics} gap-4`}>
             <div className="bg-gray-900/40 border border-white/5 rounded-theme p-4 relative overflow-hidden group hover:border-purple-500/30 transition-all">
                 <div className="flex items-center justify-between">
                     <div className="space-y-1">
@@ -367,9 +370,48 @@ const DashboardComponent: React.FC<DashboardProps> = ({
             </div>
         </div>
 
-        {/* Granular Breakdown */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-gray-900/40 border border-white/5 rounded-theme p-6 space-y-4">
+        {/* Granular Breakdown - Side by Side Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+             {/* Recent Activity List - Left Side */}
+             <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 flex flex-col">
+                <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-6">
+                    <Icons.System size={16} className="text-brand-500" /> Recent Updates
+                </h3>
+                <div className="space-y-1">
+                    {stats.recentPrompts.map((p) => {
+                        const CategoryIcon = getIconForCategory(p.category);
+                        const categoryColor = getColorForCategory(p.category);
+                        return (
+                            <button 
+                                key={p.id}
+                                onClick={() => onOpenPrompt(p)}
+                                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 transition-all group text-left"
+                            >
+                                <div className="flex items-center gap-4 overflow-hidden">
+                                    <div className="min-w-0">
+                                        <div className="font-medium text-gray-200 text-sm group-hover:text-white truncate">{p.title}</div>
+                                        <div className="text-xs text-gray-500 font-mono truncate leading-relaxed">{p.description}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 pl-4 shrink-0">
+                                    <div className="flex items-center gap-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                                        <CategoryIcon size={12} className={categoryColor} />
+                                        <span className="text-xs uppercase tracking-wider text-gray-500">{p.category}</span>
+                                    </div>
+                                    <Icons.Edit size={14} className="text-gray-600 group-hover:text-brand-500 opacity-0 group-hover:opacity-100 transition-all" />
+                                </div>
+                            </button>
+                        );
+                    })}
+                    {stats.recentPrompts.length === 0 && (
+                        <div className="text-center text-gray-500 py-10">No recent activity</div>
+                    )}
+                </div>
+            </div>
+
+            {/* Category Breakdown - Right Side */}
+            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 space-y-4">
                 <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
                         <Icons.Analysis size={16} className="text-brand-500" /> Category Breakdown
@@ -410,118 +452,6 @@ const DashboardComponent: React.FC<DashboardProps> = ({
                 </div>
             </div>
 
-            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                        <Icons.System size={16} className="text-brand-500" /> Model Mix
-                    </h3>
-                    <span className="text-[10px] uppercase tracking-wider text-gray-500 font-mono">Coverage</span>
-                </div>
-                <div className="space-y-3">
-                    {stats.modelMix.length === 0 && (
-                        <div className="text-center text-gray-500 py-6">No model data yet</div>
-                    )}
-                    {stats.modelMix.map((model, i) => (
-                        <div key={model.name} className="space-y-1">
-                            <div className="flex items-center justify-between text-sm text-gray-300">
-                                <span className="font-medium truncate max-w-[160px]" title={model.name}>{model.name}</span>
-                                <span className="text-xs text-gray-500 font-mono">{model.count} · {model.percentage}%</span>
-                            </div>
-                            <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-gradient-to-r from-brand-500 to-cyan-400 rounded-full transition-all duration-700"
-                                    style={{ width: `${model.percentage}%`, animationDelay: `${i * 80}ms` }}
-                                ></div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-             {/* Recent Activity List - Cleaned Up */}
-             <div className="lg:col-span-2 bg-gray-900/40 border border-white/5 rounded-theme p-6 flex flex-col">
-                <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-6">
-                    <Icons.System size={16} className="text-brand-500" /> Recent Updates
-                </h3>
-                <div className="space-y-1">
-                    {stats.recentPrompts.map((p) => {
-                        const CategoryIcon = getIconForCategory(p.category);
-                        const categoryColor = getColorForCategory(p.category);
-                        return (
-                            <button 
-                                key={p.id}
-                                onClick={() => onOpenPrompt(p)}
-                                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 transition-all group text-left"
-                            >
-                                <div className="flex items-center gap-4 overflow-hidden">
-                                    <div className="min-w-0">
-                                        <div className="font-medium text-gray-200 text-sm group-hover:text-white truncate">{p.title}</div>
-                                        <div className="text-xs text-gray-500 font-mono truncate leading-relaxed">{p.description}</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-4 pl-4 shrink-0">
-                                    <div className="flex items-center gap-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                                        <CategoryIcon size={12} className={categoryColor} />
-                                        <span className="text-xs uppercase tracking-wider text-gray-500">{p.category}</span>
-                                    </div>
-                                    <Icons.Edit size={14} className="text-gray-600 group-hover:text-brand-500 opacity-0 group-hover:opacity-100 transition-all" />
-                                </div>
-                            </button>
-                        );
-                    })}
-                    {stats.recentPrompts.length === 0 && (
-                        <div className="text-center text-gray-500 py-10">No recent activity</div>
-                    )}
-                </div>
-            </div>
-
-            {/* Category Distribution */}
-            <div className="bg-gray-900/40 border border-white/5 rounded-theme p-6 flex flex-col">
-                <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2 mb-6">
-                    <Icons.Analysis size={16} className="text-brand-500" /> Distribution
-                </h3>
-                <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                    {stats.categoryData.map((cat, i) => (
-                        <button 
-                            key={cat.name} 
-                            onClick={() => onNavigateToCategory(cat.name)}
-                            className="w-full group text-left"
-                        >
-                            <div className="flex justify-between items-center mb-1 text-sm">
-                                <span className="font-medium text-gray-300 group-hover:text-white transition-colors">{cat.name}</span>
-                                <span className="font-mono text-gray-500 text-xs">{cat.count}</span>
-                            </div>
-                            <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-gradient-to-r from-brand-500 to-purple-600 rounded-full transition-all duration-1000 ease-out group-hover:brightness-125"
-                                    style={{ width: `${cat.percentage}%`, animationDelay: `${i * 100}ms` }}
-                                ></div>
-                            </div>
-                        </button>
-                    ))}
-                </div>
-                
-                <div className="mt-6 pt-6 border-t border-white/5">
-                     <h3 className="text-xs font-semibold text-gray-500 flex items-center gap-2 mb-4 uppercase tracking-widest">
-                        <Icons.Tag size={12} /> Top Tags
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                        {stats.topTags.map(([tag, count]) => (
-                            <button
-                                key={tag}
-                                type="button"
-                                onClick={() => onNavigateToTag(tag)}
-                                className="text-xs px-2 py-1 rounded bg-white/5 text-gray-400 border border-white/5 hover:bg-brand-500/20 hover:text-white hover:border-brand-500/60 transition-colors"
-                            >
-                                #{tag} <span className="text-gray-600 ml-1">{count}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
         </div>
 
       </div>

@@ -12,7 +12,6 @@ import { PromptEditTab } from './promptModal/PromptEditTab';
 import { usePromptMetaAndTags } from './promptModal/usePromptMetaAndTags';
 import { usePromptExamplesLogic } from './promptModal/usePromptExamplesLogic';
 import { runGeminiPromptStream, generateSampleVariables } from '../services/geminiService';
-import { ModelSelector } from './ModelSelector';
 
 interface PromptModalProps {
   isOpen: boolean;
@@ -80,40 +79,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   const [isTagging, setIsTagging] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isAutoMeta, setIsAutoMeta] = useState(false);
-  const [modelProvider, setModelProvider] = useState<string>(() => {
-    try {
-      return localStorage.getItem('prompt_model_provider') || 'auto';
-    } catch {
-      return 'auto';
-    }
-  });
-  const [modelName, setModelName] = useState<string>(() => {
-    try {
-      return localStorage.getItem('prompt_model_name') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [lastRuntime, setLastRuntime] = useState<{ provider?: string; model?: string }>(() => {
-    return { provider: (localStorage.getItem('prompt_model_provider') || undefined) as any, model: (localStorage.getItem('prompt_model_name') || undefined) as any };
-  });
 
-  useEffect(() => {
-    const handler = (e: any) => {
-      const d = e?.detail || {};
-      if (d.provider) setModelProvider(d.provider);
-      if (d.modelName) setModelName(d.modelName);
-    };
-    window.addEventListener('prompt_model_change', handler);
-    const rtHandler = (e: any) => {
-      const d = e?.detail || {};
-      if (d.provider || d.model) {
-        setLastRuntime({ provider: d.provider || modelProvider, model: d.model || modelName });
-      }
-    };
-    window.addEventListener('prompt_runtime_used', rtHandler);
-    return () => window.removeEventListener('prompt_model_change', handler);
-  }, []);
 
   type TabKey = 'preview' | 'edit' | 'examples' | 'test' | 'history';
   const [activeTab, setActiveTab] = useState<TabKey>('preview');
@@ -1120,24 +1086,6 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
                 </button>
               )}
             </div>
-            {/* 模型选择器组 - 统一的玻璃态设计 */}
-            <div className="flex items-center gap-1.5">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur-md shadow-lg">
-                <ModelSelector
-                  value={{ provider: modelProvider, model: modelName }}
-                  onChange={(value) => {
-                    setModelProvider(value.provider);
-                    setModelName(value.model);
-                    try {
-                      localStorage.setItem('prompt_model_provider', value.provider);
-                      localStorage.setItem('prompt_model_name', value.model);
-                    } catch {}
-                  }}
-                  className="text-sm"
-                  lastRuntime={lastRuntime}
-                />
-              </div>
-            </div>
 
             {/* 关闭按钮 - 更现代的设计 */}
             <button
@@ -1252,7 +1200,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
                   onDuplicate={initialData ? handleDuplicate : undefined}
                   onCancel={onClose}
                   onSaveClick={() => {
-        safeSave({ config: { ...(formData.config || {}), modelProvider, modelName } });
+        safeSave({ config: formData.config || {} });
                     onClose();
                   }}
                   isAutoSaving={isAutoSaving}

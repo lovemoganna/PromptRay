@@ -67,6 +67,101 @@ export const FOUNDATION = {
 } as const;
 
 // =============================================================================
+// 统一布局常量 (Layout Constants)
+// =============================================================================
+
+export const LAYOUT = {
+  // 容器宽度
+  container: {
+    sm: 'max-w-sm',    // 384px
+    md: 'max-w-md',    // 448px
+    lg: 'max-w-lg',    // 512px
+    xl: 'max-w-xl',    // 576px
+    '2xl': 'max-w-2xl', // 672px
+    '3xl': 'max-w-3xl', // 768px
+    '4xl': 'max-w-4xl', // 896px
+    '5xl': 'max-w-5xl', // 1024px
+    '6xl': 'max-w-6xl', // 1152px
+    '7xl': 'max-w-7xl', // 1280px
+  },
+
+  // 侧边栏宽度
+  sidebar: {
+    width: 'w-64',      // 256px
+    collapsed: 'w-16',   // 64px (折叠时)
+  },
+
+  // 响应式断点
+  breakpoints: {
+    mobile: 'sm:',      // 640px+
+    tablet: 'md:',      // 768px+
+    desktop: 'lg:',     // 1024px+
+    wide: 'xl:',        // 1280px+
+    ultra: '2xl:',      // 1536px+
+  },
+
+  // 统一间距应用
+  spacing: {
+    // 页面级间距
+    page: 'p-6',                    // 24px
+    pageMobile: 'p-4 md:p-6',       // 16px/24px
+
+    // 区块间距
+    section: 'space-y-6',           // 24px
+    sectionSmall: 'space-y-4',      // 16px
+
+    // 组件间距
+    component: 'p-6',               // 24px
+    componentSmall: 'p-4',          // 16px
+
+    // 元素间距
+    element: 'space-y-4',           // 16px
+    elementSmall: 'space-y-2',      // 8px
+
+    // 内边距
+    padding: {
+      card: 'p-6',
+      input: 'px-3 py-2',
+      button: 'px-3 py-1.5',
+    },
+
+    // 外边距
+    margin: {
+      section: 'mb-6',
+      element: 'mb-4',
+      item: 'mb-2',
+    },
+  },
+
+  // 栅格系统
+  grid: {
+    // 统计卡片行 (4列)
+    stats: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+
+    // 指标行 (2-4列)
+    metrics: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4',
+
+    // 内容布局 (3列)
+    content: 'grid-cols-1 lg:grid-cols-3',
+
+    // 卡片网格
+    cards: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
+
+    // 紧凑网格
+    compact: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+  },
+
+  // 阴影层次
+  elevation: {
+    none: 'shadow-none',
+    low: 'shadow-sm hover:shadow-md',
+    medium: 'shadow-md hover:shadow-lg',
+    high: 'shadow-lg hover:shadow-xl',
+    max: 'shadow-xl hover:shadow-2xl',
+  },
+} as const;
+
+// =============================================================================
 // 2. 主题变量系统 (Theme System)
 // =============================================================================
 

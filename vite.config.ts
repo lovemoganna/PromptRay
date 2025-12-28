@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    worker: {
+      format: 'es'
+    },
     // Allow overriding base via env (VITE_BASE) so GitHub Actions can set repo-specific base for project pages.
     base: env.VITE_BASE || './',
     define: {

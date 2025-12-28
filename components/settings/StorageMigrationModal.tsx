@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Text } from '../ui/Text';
+import { DuckDBMigrationModal } from '../DuckDBMigrationModal';
 import {
   MigrationStatus,
   MigrationResult,
@@ -31,6 +32,7 @@ export const StorageMigrationModal: React.FC<StorageMigrationModalProps> = ({
     localStorage: any;
     indexedDB: any;
   } | null>(null);
+  const [showDuckDBMigration, setShowDuckDBMigration] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -229,6 +231,26 @@ export const StorageMigrationModal: React.FC<StorageMigrationModalProps> = ({
           <div className="mb-6">
             <h3 className="text-lg font-medium mb-3">Migration Actions</h3>
             <div className="space-y-3">
+              {/* DuckDB Migration */}
+              <div className="border border-brand-500/30 rounded-lg p-4 bg-brand-500/5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold text-brand-600">🚀 DuckDB 存储迁移</h4>
+                    <p className="text-sm text-gray-600">将数据迁移到高性能的 DuckDB 数据库</p>
+                  </div>
+                  <Button
+                    onClick={() => setShowDuckDBMigration(true)}
+                    className="bg-brand-500 hover:bg-brand-600 text-white"
+                  >
+                    开始迁移
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-500 space-y-1">
+                  <div>• 支持原生 SQL 查询和分析</div>
+                  <div>• 更快的查询性能和更好的并发性</div>
+                  <div>• 内置 SQL 控制台用于数据探索</div>
+                </div>
+              </div>
               <Button
                 onClick={handleManualMigration}
                 disabled={isMigrating || migrationStatus?.isCompleted}
@@ -355,6 +377,16 @@ export const StorageMigrationModal: React.FC<StorageMigrationModalProps> = ({
           </div>
         </div>
       </Card>
+
+      {/* DuckDB Migration Modal */}
+      <DuckDBMigrationModal
+        isOpen={showDuckDBMigration}
+        onClose={() => setShowDuckDBMigration(false)}
+        onMigrationComplete={(result) => {
+          console.info('DuckDB migration completed:', result);
+          // 可以在这里添加迁移完成后的处理逻辑
+        }}
+      />
     </div>
   );
 };

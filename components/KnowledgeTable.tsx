@@ -36,9 +36,6 @@ const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpe
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[160px] md:min-w-[220px] hidden md:table-cell">中文提示词</th>
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[60px] md:min-w-[80px]">Output</th>
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[100px] md:min-w-[120px] hidden md:table-cell">应用场景</th>
-              <th scope="col" className="px-2 md:px-4 py-3 min-w-[100px] md:min-w-[140px] hidden lg:table-cell">模型</th>
-              <th scope="col" className="px-2 md:px-4 py-3 min-w-[120px] md:min-w-[140px] hidden xl:table-cell">技术标签</th>
-              <th scope="col" className="px-2 md:px-4 py-3 min-w-[120px] md:min-w-[140px] hidden xl:table-cell">风格标签</th>
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[120px] md:min-w-[140px] hidden lg:table-cell" title="收藏时间">Collected</th>
             </tr>
           </thead>
@@ -85,54 +82,6 @@ const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpe
                   <span className={`inline-flex items-center gap-1 text-[11px] ${colors.text.secondary}`}>
                     {p.applicationScene || '-'}
                   </span>
-                </td>
-                <td className="px-4 py-3 align-top">
-                  <div className={`flex flex-col gap-0.5 text-[11px] ${colors.text.secondary}`}>
-                    {(p.recommendedModels || []).slice(0, 2).map((m) => (
-                      <span key={m} className="truncate">
-                        {m}
-                      </span>
-                    ))}
-                    {p.recommendedModels && p.recommendedModels.length > 2 && (
-                      <span className={`text-[10px] ${colors.text.muted}`}>
-                        +{p.recommendedModels.length - 2} more
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 align-top hidden lg:table-cell">
-                  <div className="flex flex-wrap gap-1 max-w-[180px]">
-                    {(p.technicalTags || []).slice(0, 3).map((t) => (
-                      <span
-                        key={t}
-                        className={`px-1.5 py-0.5 rounded-full bg-white/5 text-[10px] ${colors.text.secondary}`}
-                      >
-                        {t}
-                      </span>
-                    ))}
-                    {p.technicalTags && p.technicalTags.length > 3 && (
-                      <span className={`text-[10px] ${colors.text.muted}`}>
-                        +{p.technicalTags.length - 3}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 align-top hidden lg:table-cell">
-                  <div className="flex flex-wrap gap-1 max-w-[180px]">
-                    {(p.styleTags || []).slice(0, 3).map((t) => (
-                      <span
-                        key={t}
-                        className={`px-1.5 py-0.5 rounded-full bg-white/5 text-[10px] ${colors.text.secondary}`}
-                      >
-                        {t}
-                      </span>
-                    ))}
-                    {p.styleTags && p.styleTags.length > 3 && (
-                      <span className={`text-[10px] ${colors.text.muted}`}>
-                        +{p.styleTags.length - 3}
-                      </span>
-                    )}
-                  </div>
                 </td>
                 <td className="px-4 py-3 align-top">
                   <div className={`flex flex-col gap-0.5 text-[10px] ${colors.text.muted} font-mono`}>

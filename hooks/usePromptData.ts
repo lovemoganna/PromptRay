@@ -7,6 +7,7 @@ import {
   saveCustomCategories
 } from '../services/storageService';
 import { STANDARD_CATEGORIES, SPECIAL_CATEGORY_TRASH } from '../constants';
+import { dataSyncManager, DataChangeEvent } from './useDuckDBSync';
 
 export const usePromptData = () => {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
@@ -30,11 +31,63 @@ export const usePromptData = () => {
     loadData();
   }, []);
 
+  // Listen for data changes from SQL console
+  useEffect(() => {
+    const handleDataChange = (event: DataChangeEvent) => {
+      console.info('📡 Received data change event:', event.type);
+
+      switch (event.type) {
+        case 'PROMPT_CREATED':
+          console.info('➕ Adding new prompt from SQL console:', event.payload.title);
+          setPrompts(prev => {
+            // Avoid duplicates
+            const exists = prev.some(p => p.id === event.payload.id);
+            if (exists) {
+              console.warn('⚠️ Prompt already exists, skipping:', event.payload.id);
+              return prev;
+            }
+            return [event.payload, ...prev];
+          });
+          break;
+
+        case 'PROMPT_UPDATED':
+          console.info('✏️ Updating prompt from SQL console:', event.payload.title);
+          setPrompts(prev => prev.map(p =>
+            p.id === event.payload.id ? event.payload : p
+          ));
+          break;
+
+        case 'PROMPT_DELETED':
+          console.info('🗑️ Deleting prompt from SQL console:', event.payload.id);
+          setPrompts(prev => prev.filter(p => p.id !== event.payload.id));
+          break;
+
+        case 'CATEGORIES_UPDATED':
+          console.info('📂 Updating categories from SQL console:', event.payload);
+          setCustomCategories(event.payload);
+          break;
+
+        default:
+          // Ignore other event types
+          break;
+      }
+    };
+
+    // Subscribe to data change events
+    const unsubscribe = dataSyncManager.subscribe(handleDataChange);
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Persist prompts with debounce to avoid excessive writes
   useEffect(() => {
     const timeoutId = setTimeout(async () => {
       try {
         await savePrompts(prompts);
+        // Notify SQL console about data changes
+        console.info('💾 Main storage updated, notifying SQL console');
       } catch (error) {
         console.warn('Failed to save prompts:', error);
       }

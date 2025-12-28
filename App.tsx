@@ -11,6 +11,8 @@ import { KnowledgeTable } from './components/KnowledgeTable';
 import { CommandPalette } from './components/CommandPalette';
 import { PromptCard } from './components/PromptCard';
 import { StorageMigrationModal } from './components/settings/StorageMigrationModal';
+import { SQLConsole } from './components/SQLConsole';
+import { ModelSelector } from './components/ModelSelector';
 import { Prompt, PromptFormData, Theme, PromptVersion } from './types';
 import { getModelsForProvider, ProviderKey } from './services/modelRegistry';
 import SearchableSelect from './components/ui/SearchableSelect';
@@ -25,6 +27,7 @@ import { useFilterState } from './hooks/useFilterState';
 import { useThemeManager } from './hooks/useThemeManager';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { initializeStorageMigration } from './services/storageService';
+import { dataSyncManager } from './hooks/useDuckDBSync';
 
 // Refined Themes - Professional & Aesthetic
 const THEMES: Theme[] = [
@@ -210,8 +213,8 @@ const App: React.FC = () => {
   }, []);
 
   // Model provider/model filters synchronized with useFilterState
-  const [selectedProvider, setSelectedProvider] = useState<string>('All');
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedProvider, setSelectedProvider] = useState<string>('groq');
+  const [selectedModel, setSelectedModel] = useState<string>('openai/gpt-oss-120b');
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   // keep filter state in sync with hook's internal state via localStorage (useFilterState persists)
@@ -253,14 +256,8 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile sidebar state
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); // Desktop sidebar state
 
-  // Modify grid prompts based on fullscreen mode (sidebar closed)
-  const pagedGridPrompts = useMemo(() => {
-    if (!isDesktopSidebarOpen) {
-      // In fullscreen mode, only show 5 cards regardless of view
-      return filteredPrompts.slice(0, 5);
-    }
-    return originalPagedGridPrompts;
-  }, [isDesktopSidebarOpen, filteredPrompts, originalPagedGridPrompts]);
+  // Use the original paginated grid prompts - no artificial limit in fullscreen mode
+  const pagedGridPrompts = originalPagedGridPrompts;
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -295,6 +292,12 @@ const App: React.FC = () => {
 
   // Storage Migration Modal State
   const [isStorageMigrationOpen, setIsStorageMigrationOpen] = useState(false);
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const [sqlConsoleOpen, setSqlConsoleOpen] = useState(false);
+
+  // Model selector state for UX enhancements
+  const [modelSelectorFocusMode, setModelSelectorFocusMode] = useState<'overview' | 'selection'>('overview');
+  const [previouslyFocusedElement, setPreviouslyFocusedElement] = useState<Element | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const showToast = useCallback(
@@ -326,6 +329,8 @@ const App: React.FC = () => {
       history: []
     };
     setPrompts(prev => [newPrompt, ...prev]);
+    // Notify SQL console about the new prompt
+    dataSyncManager.emit({ type: 'PROMPT_CREATED', payload: newPrompt });
     showToast('Prompt created successfully');
   }, [showToast]);
 
@@ -365,6 +370,8 @@ const App: React.FC = () => {
     
     setPrompts(prev => prev.map(p => p.id === updatedPrompt.id ? updatedPrompt : p));
     setEditingPrompt(updatedPrompt);
+    // Notify SQL console about the updated prompt
+    dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: updatedPrompt });
     showToast('Prompt updated successfully');
   }, [editingPrompt, showToast]);
 
@@ -405,13 +412,18 @@ const App: React.FC = () => {
             type: 'danger',
             onConfirm: () => {
                 setPrompts(prev => prev.filter(p => p.id !== id));
+                // Notify SQL console about the deleted prompt
+                dataSyncManager.emit({ type: 'PROMPT_DELETED', payload: { id } });
                 showToast('Prompt permanently deleted', 'info');
                 setConfirmDialog(prev => ({ ...prev, isOpen: false }));
             }
         });
     } else {
-        // Soft Delete
-        setPrompts(prev => prev.map(p => p.id === id ? { ...p, deletedAt: Date.now() } : p));
+        // Soft Delete - treat as update for SQL console
+        const updatedPrompt = { ...prompt, deletedAt: Date.now() };
+        setPrompts(prev => prev.map(p => p.id === id ? updatedPrompt : p));
+        // Notify SQL console about the updated prompt (soft delete)
+        dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: updatedPrompt });
         showToast('Moved to Trash');
     }
   }, [prompts, showToast]);
@@ -424,7 +436,18 @@ const App: React.FC = () => {
 
   const toggleFavorite = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setPrompts(prev => prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p));
+    setPrompts(prev => {
+      const updatedPrompts = prev.map(p => {
+        if (p.id === id) {
+          const updatedPrompt = { ...p, isFavorite: !p.isFavorite };
+          // Notify SQL console about the updated prompt
+          dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: updatedPrompt });
+          return updatedPrompt;
+        }
+        return p;
+      });
+      return updatedPrompts;
+    });
   }, []);
 
   const copyToClipboard = useCallback((text: string, e: React.MouseEvent) => {
@@ -550,6 +573,62 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   }, []);
 
+  // Enhanced keyboard shortcuts for model selector
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (modelSelectorOpen) {
+        switch (e.key) {
+          case 'Escape':
+            setModelSelectorOpen(false);
+            break;
+          case 'Enter':
+            if (modelSelectorFocusMode === 'overview') {
+              // Quick select default model
+              setSelectedProvider('groq');
+              setSelectedModel('openai/gpt-oss-120b');
+              setModelSelectorOpen(false);
+              showToast('已选择默认推荐模型', 'success');
+            }
+            break;
+          case 'ArrowRight':
+          case 'ArrowLeft':
+            setModelSelectorFocusMode(prev => prev === 'overview' ? 'selection' : 'overview');
+            break;
+          case '1':
+            if (e.ctrlKey || e.metaKey) {
+              // Smart selection
+              setSelectedProvider('auto');
+              setSelectedModel('');
+              setModelSelectorOpen(false);
+              showToast('已启用智能自动选择', 'success');
+            }
+            break;
+          case '2':
+            if (e.ctrlKey || e.metaKey) {
+              // Select GROQ
+              setSelectedProvider('groq');
+              setSelectedModel('openai/gpt-oss-120b');
+              setModelSelectorOpen(false);
+              showToast('已选择 GROQ 快速模型', 'success');
+            }
+            break;
+          case '3':
+            if (e.ctrlKey || e.metaKey) {
+              // Select OpenAI
+              setSelectedProvider('openai');
+              setSelectedModel('');
+              setModelSelectorOpen(false);
+              showToast('已选择 OpenAI 官方模型', 'success');
+            }
+            break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [modelSelectorOpen, modelSelectorFocusMode, showToast]);
+
   // Global keyboard shortcuts
   useGlobalShortcuts({
     isModalOpen,
@@ -572,6 +651,11 @@ const App: React.FC = () => {
 
   const handleViewChange = useCallback((view: PromptView) => {
       setCurrentView(view);
+      // Close all modals when switching views
+      setModelSelectorOpen(false);
+      setSqlConsoleOpen(false);
+      setIsStorageMigrationOpen(false);
+      setIsModalOpen(false);
       // Reset filters so the view always shows full coverage (user feedback)
       setSelectedCategory('All');
       setSelectedTag(undefined);
@@ -581,7 +665,11 @@ const App: React.FC = () => {
   }, []);
 
     return (
-    <div className={`flex h-screen w-full surface-shell ${currentThemeId === 'theme-light' ? 'text-slate-900' : 'text-slate-100'} overflow-hidden text-base transition-all duration-700 relative selection:bg-brand-500/30 animate-theme-transition`} style={{ fontFamily: 'var(--font-ui)' }}>
+    <div className={`h-screen w-full surface-shell ${currentThemeId === 'theme-light' ? 'text-slate-900' : 'text-slate-100'} overflow-hidden text-base transition-all duration-700 relative selection:bg-brand-500/30 animate-theme-transition ${
+      isDesktopSidebarOpen
+        ? 'grid grid-cols-[256px_1fr] items-start'
+        : 'flex flex-col'
+    }`} style={{ fontFamily: 'var(--font-ui)' }}>
       
       {/* Enhanced Background Layer */}
       <AmbientBackground themeId={currentThemeId} />
@@ -597,15 +685,15 @@ const App: React.FC = () => {
       
       <div className="absolute inset-0 pointer-events-none z-[1] bg-gradient-to-br from-brand-500/5 via-transparent to-purple-500/5"></div>
 
-      <Sidebar 
-        selectedCategory={selectedCategory} 
+      <Sidebar
+        selectedCategory={selectedCategory}
         selectedTag={selectedTag}
         onSelectCategory={useCallback((cat: string) => {
             setSelectedCategory(cat);
             if (currentView === 'dashboard') setCurrentView('grid');
         }, [currentView])}
         onSelectTag={setSelectedTag}
-        counts={categoryCounts} 
+        counts={categoryCounts}
         topTags={topTags}
         customCategories={customCategories}
         onAddCategory={handleAddCategory}
@@ -616,22 +704,42 @@ const App: React.FC = () => {
         onCloseMobile={useCallback(() => setIsSidebarOpen(false), [])}
         isDesktopOpen={isDesktopSidebarOpen}
         onToggleDesktop={useCallback(() => setIsDesktopSidebarOpen(prev => !prev), [])}
+        selectedProvider={selectedProvider}
+        onModelSelectorOpen={useCallback(() => {
+          // Store the currently focused element for restoration
+          setPreviouslyFocusedElement(document.activeElement);
+
+          // Close all other modals before opening model selector
+          setSqlConsoleOpen(false);
+          setIsStorageMigrationOpen(false);
+          setIsModalOpen(false);
+          setModelSelectorOpen(true);
+        }, [])}
+        onSQLConsoleOpen={useCallback(() => {
+          // Close all other modals before opening SQL console
+          setModelSelectorOpen(false);
+          setIsStorageMigrationOpen(false);
+          setIsModalOpen(false);
+          setSqlConsoleOpen(true);
+        }, [])}
       />
 
-      <main className={`flex-1 relative z-10 flex flex-col transition-all duration-300 ${!isDesktopSidebarOpen ? 'w-full' : ''}`}>
+      <main className={`relative z-10 flex flex-col transition-all duration-300 flex-1 ${
+        !isDesktopSidebarOpen ? 'justify-start' : 'justify-start'
+      }`}>
         <div
-          className={`w-full h-full flex flex-col overflow-hidden transition-all duration-700 ${
+          className={`w-full flex flex-col transition-all duration-700 ${
             !isDesktopSidebarOpen
-              ? 'rounded-none border-0 mt-0 mb-0 shadow-none'
-              : 'glass-panel border border-white/10 shadow-2xl rounded-3xl mt-4 md:mt-6 mb-4 md:mb-6 mx-4 md:mx-6 lg:mx-8'
+              ? 'rounded-none border-0 mt-0 mb-0 mx-0 shadow-none h-full'
+              : 'glass-panel border border-white/10 shadow-2xl rounded-3xl mt-4 md:mt-6 mb-4 md:mb-6 mx-4 md:mx-6 lg:mx-8 h-full'
           }`}
         >
         {/* Enhanced Top Bar - Glassmorphic with Better Depth */}
-        <header className={`flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-gray-900/60 backdrop-blur-xl z-10 border-b border-white/10 shadow-lg ${
-          !isDesktopSidebarOpen
-            ? 'p-3'
-            : 'p-4 md:p-6'
-        }`}>
+          <header className={`flex flex-col gap-4 md:flex-row ${!isDesktopSidebarOpen ? 'md:items-start' : 'md:items-center'} md:justify-between bg-gray-900/60 backdrop-blur-xl z-10 border-b border-white/10 shadow-lg ${
+            !isDesktopSidebarOpen
+              ? 'w-[95%] mx-auto px-8 py-8 border border-white/10'
+              : 'w-full px-4 py-3 md:px-6 md:py-4'
+          }`}>
             <div className="flex items-center gap-3">
                 <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 text-gray-400 hover:text-white rounded-lg border border-white/5 bg-white/5">
                     <Icons.Menu size={18} />
@@ -656,7 +764,7 @@ const App: React.FC = () => {
                 </button>
             </div>
             
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-2 md:gap-3 mr-8">
                 {/* Sort Controls - Only show in grid/list view */}
                 {currentView !== 'dashboard' && (
                     <div className="hidden md:flex items-center gap-2 bg-white/5 rounded-theme border border-white/10 p-1 shadow-sm">
@@ -736,25 +844,19 @@ const App: React.FC = () => {
             </div>
         </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth p-6">
+        {/* Content Area - Optimized spacing for fullscreen */}
+        <div className={`flex-1 overflow-y-auto custom-scrollbar scroll-smooth border border-white/10 ${
+          !isDesktopSidebarOpen ? 'w-[95%] mx-auto p-4 md:p-6' : 'w-full p-4 md:p-6'
+        }`}>
             {currentView === 'dashboard' ? (
                 <Dashboard
                     prompts={activePrompts}
                     onOpenPrompt={openEditModal}
-                    onNavigateToCategory={(cat) => {
-                        setSelectedCategory(cat);
-                        setSelectedTag(undefined);
-                        setCurrentView('grid');
-                    }}
-                    onNavigateToTag={(tag) => {
-                        setSelectedTag(tag);
-                        setSelectedCategory('All');
-                        setCurrentView('grid');
-                    }}
                 />
         ) : currentView === 'list' ? (
-            <div className="max-w-full mx-auto space-y-6 px-4">
+            <div className={`max-w-full mx-auto space-y-6 ${
+              !isDesktopSidebarOpen ? 'px-2' : 'px-4'
+            }`}>
                 {/* Filter chips */}
                 {(selectedTag || selectedCategory === SPECIAL_CATEGORY_TRASH || favoritesOnly || recentOnly) && (
                     <div className={`mb-4 animate-fade-in`}>
@@ -839,7 +941,9 @@ const App: React.FC = () => {
                 )}
             </div>
         ) : currentView === 'table' ? (
-            <div className="max-w-full mx-auto space-y-6 px-4">
+            <div className={`max-w-full mx-auto space-y-6 ${
+              !isDesktopSidebarOpen ? 'px-2' : 'px-4'
+            }`}>
                 {(selectedTag || selectedCategory === SPECIAL_CATEGORY_TRASH || favoritesOnly || recentOnly) && (
                     <div className="flex items-center gap-2 animate-fade-in">
                         {selectedCategory === SPECIAL_CATEGORY_TRASH && (
@@ -875,7 +979,9 @@ const App: React.FC = () => {
                 />
             </div>
         ) : (
-            <div className="max-w-full mx-auto space-y-6 px-4">
+            <div className={`max-w-full mx-auto space-y-6 ${
+              !isDesktopSidebarOpen ? 'px-2' : 'px-4'
+            }`}>
                 {/* Filter chips - outside grid container */}
                 {(selectedTag || selectedCategory === SPECIAL_CATEGORY_TRASH || favoritesOnly || recentOnly) && (
                     <div className="mb-3 flex items-center gap-2 animate-fade-in">
@@ -905,11 +1011,11 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* Grid View - Multi-card layout for better space utilization */}
-                <div className="grid gap-6 justify-center pb-16" style={{
+                {/* Grid View - Optimized for fullscreen space utilization */}
+                <div className="grid gap-4 justify-center pb-12" style={{
                     gridTemplateColumns: isDesktopSidebarOpen
                       ? 'repeat(auto-fit, minmax(280px, 1fr))'
-                      : 'repeat(auto-fit, minmax(280px, 1fr))'
+                      : 'repeat(auto-fit, minmax(240px, 1fr))'
                   }}>
                     {filteredPrompts.length === 0 ? (
                         <div className={emptyStateClass}>
@@ -949,7 +1055,7 @@ const App: React.FC = () => {
                         })
                     )}
                 </div>
-                {pagedGridPrompts.length < filteredPrompts.length && isDesktopSidebarOpen && (
+                {pagedGridPrompts.length < filteredPrompts.length && (
                   <div className="flex justify-center pt-2 pb-6">
                     <button
                       onClick={() => setGridPage(prev => prev + 1)}
@@ -1019,6 +1125,341 @@ const App: React.FC = () => {
             onConfirm={confirmDialog.onConfirm}
             onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
         />
+
+
+        {/* Model Selector Modal - Enhanced Accessibility */}
+        {modelSelectorOpen && (
+            <div
+                className="fixed inset-0 bg-black/85 backdrop-blur-xl z-50 flex items-start justify-center pt-2 pb-2 px-2 sm:pt-6 sm:pb-4 sm:px-4 animate-fade-in"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="model-selector-title"
+                aria-describedby="model-selector-description"
+            >
+                <div
+                    className={`w-full max-w-[60vw] bg-gradient-to-br from-gray-900/95 via-slate-900/98 to-gray-900/95 border rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden animate-slide-up-fade backdrop-blur-2xl ring-1 transition-all duration-300 ${
+                        modelSelectorFocusMode === 'overview'
+                            ? 'border-violet-400/30 ring-violet-400/20 shadow-violet-500/20'
+                            : 'border-blue-400/30 ring-blue-400/20 shadow-blue-500/20'
+                    }`}
+                    onKeyDown={(e) => {
+                        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                            setModelSelectorFocusMode(prev => prev === 'overview' ? 'selection' : 'overview');
+                        }
+                    }}
+                    tabIndex={-1}
+                    role="document"
+                >
+                    {/* Enhanced Header - Multi-layered gradients and improved visual hierarchy */}
+                    <div className="relative bg-gradient-to-br from-violet-600/15 via-purple-600/10 to-blue-600/15 border-b border-white/20 overflow-hidden">
+                        {/* Animated background layers */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer opacity-30"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-purple-500/5 animate-pulse"></div>
+
+                        <div className="relative flex items-center justify-between p-4 sm:p-8 pb-4 sm:pb-6">
+                            <div className="flex items-center gap-3 sm:gap-5">
+                                <div className="relative group">
+                                    {/* Enhanced icon container with animated border */}
+                                    <div className="relative p-3 sm:p-4 bg-gradient-to-br from-violet-500/25 via-purple-500/20 to-blue-500/25 rounded-xl sm:rounded-2xl border border-white/30 shadow-xl shadow-violet-500/20 backdrop-blur-sm">
+                                        <Icons.Chip size={24} className="sm:w-7 sm:h-7 text-white drop-shadow-lg" />
+                                        {/* Animated ring effect */}
+                                        <div className="absolute inset-0 rounded-xl sm:rounded-2xl border-2 border-violet-400/50 animate-ping opacity-20"></div>
+                                    </div>
+                                    {/* Status indicator with enhanced glow */}
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-gradient-to-r from-emerald-400 to-green-400 rounded-full border-2 sm:border-3 border-gray-900 animate-pulse shadow-emerald-400/80 shadow-[0_0_12px] ring-2 ring-emerald-400/30"></div>
+                                </div>
+                                <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
+                                    <h1
+                                        id="model-selector-title"
+                                        className="text-xl sm:text-3xl font-black text-white tracking-tight bg-gradient-to-r from-white via-white to-gray-200 bg-clip-text text-transparent truncate"
+                                    >
+                                        AI 模型选择器
+                                    </h1>
+                                    <p
+                                        id="model-selector-description"
+                                        className="text-sm sm:text-base text-gray-300 font-medium leading-relaxed hidden sm:block"
+                                    >
+                                        选择最适合您创作需求的AI模型
+                                    </p>
+                                    <p className="text-xs text-gray-400 font-medium leading-relaxed sm:hidden" aria-hidden="true">
+                                        选择最适合的AI模型
+                                    </p>
+                                    {/* Subtle accent line */}
+                                    <div className="w-12 sm:w-16 h-0.5 bg-gradient-to-r from-violet-400 to-purple-400 rounded-full opacity-80" aria-hidden="true"></div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                  setModelSelectorOpen(false);
+                                  // Restore focus to the previously focused element
+                                  setTimeout(() => {
+                                    if (previouslyFocusedElement && 'focus' in previouslyFocusedElement) {
+                                      (previouslyFocusedElement as HTMLElement).focus();
+                                    }
+                                  }, 100);
+                                }}
+                                className="group relative p-2 sm:p-3 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg sm:rounded-xl transition-all duration-300 transform hover:scale-110 hover:rotate-90 border border-white/10 hover:border-white/20 shadow-lg hover:shadow-xl flex-shrink-0"
+                                title="关闭 (Esc)"
+                                aria-label="关闭模型选择器"
+                            >
+                                <Icons.Close size={20} className="sm:w-6 sm:h-6 transition-transform duration-200 group-hover:rotate-45" />
+                                {/* Subtle glow effect */}
+                                <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-red-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Enhanced Content - Improved visual hierarchy and spacing */}
+                    <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
+                        {/* Selection Overview - Enhanced mobile-first design */}
+                        <div className={`p-4 sm:p-8 pb-4 sm:pb-6 border-b bg-gradient-to-b from-white/5 to-transparent transition-all duration-300 ${
+                            modelSelectorFocusMode === 'overview'
+                                ? 'border-violet-400/50 bg-gradient-to-b from-violet-500/10 to-transparent ring-2 ring-violet-400/20'
+                                : 'border-white/10'
+                        }`}>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+                                {/* Enhanced Default Selection Card */}
+                                <div className="group relative bg-gradient-to-br from-amber-500/15 via-yellow-500/10 to-orange-500/15 border border-amber-400/30 rounded-2xl p-6 shadow-2xl shadow-amber-500/20 backdrop-blur-sm overflow-hidden hover:shadow-amber-500/30 transition-all duration-500">
+                                    {/* Animated background overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/5 to-orange-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-yellow-400/10 to-transparent rounded-full -translate-y-16 translate-x-16"></div>
+
+                                    <div className="relative flex items-center gap-4 mb-4">
+                                        <div className="relative">
+                                            <div className="w-10 h-10 bg-gradient-to-br from-amber-400/30 to-yellow-400/30 rounded-xl flex items-center justify-center border border-amber-400/50 shadow-lg shadow-amber-400/20">
+                                                <Icons.Star size={18} className="text-amber-300 drop-shadow-sm" />
+                                            </div>
+                                            {/* Sparkle effect */}
+                                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-300 rounded-full animate-ping opacity-60"></div>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white tracking-wide">默认推荐</h3>
+                                    </div>
+
+                                    <div className="relative flex items-center gap-5">
+                                        <div className="relative group">
+                                            <div className="w-14 h-14 bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-2xl flex items-center justify-center border-2 border-purple-400/60 shadow-xl shadow-purple-500/30 backdrop-blur-sm">
+                                                <Icons.Chip size={24} className="text-purple-300 drop-shadow-lg" />
+                                            </div>
+                                            {/* Enhanced status indicator */}
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-emerald-400 to-green-400 rounded-full border-3 border-gray-900 animate-pulse shadow-emerald-400/90 shadow-[0_0_12px] ring-2 ring-emerald-400/40"></div>
+                                            {/* Pulse ring */}
+                                            <div className="absolute inset-0 rounded-2xl border-2 border-purple-400/30 animate-ping opacity-20"></div>
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                                <span className="text-xl font-black text-white tracking-wide">
+                                                    openai/gpt-oss-120b
+                                                </span>
+                                                <span className="px-3 py-1 rounded-full text-sm font-bold bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-200 border border-purple-400/40 shadow-lg">
+                                                    GROQ 推荐
+                                                </span>
+                                            </div>
+                                            <p className="text-base text-gray-300 leading-relaxed font-medium">
+                                                ⚡ 超快推理速度 + 🎯 官方模型品质
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Enhanced Current Selection Card */}
+                                <div className="group relative bg-gradient-to-br from-slate-800/60 via-gray-800/50 to-slate-800/60 border border-white/20 rounded-2xl p-6 shadow-2xl shadow-blue-500/10 backdrop-blur-sm overflow-hidden hover:shadow-blue-500/20 transition-all duration-500">
+                                    {/* Subtle animated overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                                    <div className="relative flex items-center gap-4 mb-4">
+                                        <div className="relative">
+                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500/30 to-cyan-500/30 rounded-xl flex items-center justify-center border border-blue-400/50 shadow-lg shadow-blue-400/20">
+                                                <Icons.CheckCircle size={18} className="text-blue-300 drop-shadow-sm" />
+                                            </div>
+                                            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-400 rounded-full animate-pulse opacity-80"></div>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white tracking-wide">当前选择</h3>
+                                    </div>
+
+                                    <div className="relative flex items-center gap-5">
+                                        <div className={`relative group w-14 h-14 rounded-2xl flex items-center justify-center border-2 shadow-xl backdrop-blur-sm ${
+                                            selectedProvider === 'auto' ? 'bg-gradient-to-br from-yellow-500/30 to-amber-500/30 border-yellow-400/60 shadow-yellow-500/30' :
+                                            selectedProvider === 'gemini' ? 'bg-gradient-to-br from-blue-500/30 to-cyan-500/30 border-blue-400/60 shadow-blue-500/30' :
+                                            selectedProvider === 'groq' ? 'bg-gradient-to-br from-purple-500/30 to-pink-500/30 border-purple-400/60 shadow-purple-500/30' :
+                                            'bg-gradient-to-br from-green-500/30 to-emerald-500/30 border-green-400/60 shadow-green-500/30'
+                                        }`}>
+                                            <Icons.Chip size={24} className={`drop-shadow-lg ${
+                                                selectedProvider === 'auto' ? 'text-yellow-300' :
+                                                selectedProvider === 'gemini' ? 'text-blue-300' :
+                                                selectedProvider === 'groq' ? 'text-purple-300' :
+                                                'text-green-300'
+                                            }`} />
+                                            {/* Enhanced status indicator */}
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-emerald-400 to-green-400 rounded-full border-3 border-gray-900 animate-pulse shadow-emerald-400/90 shadow-[0_0_12px] ring-2 ring-emerald-400/40"></div>
+                                            {/* Pulse ring */}
+                                            <div className="absolute inset-0 rounded-2xl border-2 border-current opacity-20 animate-ping"></div>
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                                <span className="text-xl font-black text-white tracking-wide">
+                                                    {selectedModel || '默认模型'}
+                                                </span>
+                                                <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-lg ${
+                                                    selectedProvider === 'auto' ? 'bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-200 border border-yellow-400/40' :
+                                                    selectedProvider === 'gemini' ? 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-200 border border-blue-400/40' :
+                                                    selectedProvider === 'groq' ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-200 border border-purple-400/40' :
+                                                    'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-200 border border-green-400/40'
+                                                }`}>
+                                                    {selectedProvider === 'auto' ? '🤖 AUTO' :
+                                                     selectedProvider === 'gemini' ? '🎯 GEMINI' :
+                                                     selectedProvider === 'groq' ? '⚡ GROQ' :
+                                                     '🏆 OPENAI'}
+                                                </span>
+                                            </div>
+                                            <p className="text-base text-gray-300 leading-relaxed font-medium">
+                                                {selectedProvider === 'auto' ? '🤖 智能自动选择最优模型，提升创作效率' :
+                                                 selectedProvider === 'gemini' ? '🎯 Google Gemini 系列，平衡性能与成本' :
+                                                 selectedProvider === 'groq' ? '⚡ 超快推理，适合实时交互场景' :
+                                                 '🏆 OpenAI 官方模型，业界标准品质'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Enhanced Quick Actions Bar */}
+                            <div className="flex items-center justify-center gap-4 pt-2">
+                                <button
+                                    onClick={() => {
+                                        setSelectedProvider('auto');
+                                        setSelectedModel('');
+                                        setModelSelectorOpen(false);
+                                        showToast('🤖 已启用智能自动选择模式', 'success');
+                                    }}
+                                    className="group flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-violet-500/20 to-purple-500/20 hover:from-violet-500/30 hover:to-purple-500/30 border border-violet-400/40 hover:border-violet-400/60 rounded-2xl text-violet-200 hover:text-violet-100 font-bold transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-violet-500/20 transform hover:scale-105 active:scale-95"
+                                    title="Ctrl+1: 智能自动选择最优模型"
+                                    aria-label="智能选择模式：让AI自动选择最适合的模型，快捷键Ctrl+1"
+                                    role="button"
+                                    aria-describedby="smart-select-description"
+                                >
+                                    <Icons.Run size={18} className="group-hover:animate-pulse transition-transform duration-300" aria-hidden="true" />
+                                    <span>🤖 智能选择</span>
+                                    <kbd className="hidden md:inline-block ml-2 px-1.5 py-0.5 bg-violet-500/20 text-violet-300 text-xs rounded border border-violet-400/30" aria-label="快捷键Ctrl+1">⌘1</kbd>
+                                </button>
+                                <div className="w-px h-8 bg-white/20"></div>
+                                <button
+                                    onClick={() => {
+                                        // This would trigger a refresh in the ModelSelector component
+                                        // For now, just show feedback
+                                        showToast('🔄 正在刷新模型列表...', 'info');
+                                        setTimeout(() => {
+                                            showToast('✅ 模型列表已更新', 'success');
+                                        }, 1500);
+                                    }}
+                                    className="group flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/20 hover:border-white/30 rounded-2xl text-gray-300 hover:text-white font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                                    title="刷新所有服务商的模型列表"
+                                    aria-label="刷新模型列表：重新从所有AI服务商获取最新的模型信息"
+                                    role="button"
+                                >
+                                    <Icons.Restore size={18} className="group-hover:rotate-180 transition-transform duration-500" aria-hidden="true" />
+                                    <span>🔄 刷新列表</span>
+                                </button>
+                            </div>
+
+                            {/* Keyboard Shortcuts Help - Mobile Optimized */}
+                            <div className="mt-3 sm:mt-4 text-center hidden sm:block">
+                                <div className="inline-flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs sm:text-sm text-gray-400">
+                                    <span className="flex items-center gap-1">
+                                        <kbd className="px-1 py-0.5 sm:px-1.5 sm:py-0.5 bg-white/10 rounded text-xs">Esc</kbd>
+                                        <span className="hidden sm:inline">关闭</span>
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <kbd className="px-1 py-0.5 sm:px-1.5 sm:py-0.5 bg-white/10 rounded text-xs">Enter</kbd>
+                                        <span className="hidden sm:inline">选择默认</span>
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <kbd className="px-1 py-0.5 sm:px-1.5 sm:py-0.5 bg-white/10 rounded text-xs">←→</kbd>
+                                        <span className="hidden sm:inline">切换区域</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Enhanced Model Selection Section - Mobile Optimized */}
+                        <div className="p-4 sm:p-8">
+                            <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                                <div className="relative">
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-indigo-500/25 to-purple-500/25 rounded-lg sm:rounded-xl flex items-center justify-center border border-indigo-400/40 shadow-lg shadow-indigo-500/20">
+                                        <Icons.Settings size={16} className="sm:w-5 sm:h-5 text-indigo-300 drop-shadow-sm" />
+                                    </div>
+                                    {/* Subtle glow */}
+                                    <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-indigo-400/20 animate-pulse opacity-50"></div>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="text-lg sm:text-2xl font-bold text-white tracking-wide truncate">选择新模型</h2>
+                                    <p className="text-xs sm:text-sm text-gray-400 font-medium mt-0.5 sm:mt-1 hidden sm:block">探索更多AI模型，发现最佳创作伙伴</p>
+                                    <p className="text-xs text-gray-400 font-medium mt-0.5 sm:hidden">探索更多AI模型</p>
+                                </div>
+                            </div>
+
+                            {/* Enhanced Model Selector Container with focus feedback - Mobile Optimized */}
+                            <div className={`relative bg-gradient-to-br from-gray-800/40 via-slate-800/35 to-gray-800/40 border rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl backdrop-blur-sm overflow-hidden transition-all duration-300 ${
+                                modelSelectorFocusMode === 'selection'
+                                    ? 'border-blue-400/50 ring-2 ring-blue-400/20 shadow-blue-500/30'
+                                    : 'border-white/10'
+                            }`}>
+                                {/* Subtle animated background */}
+                                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 animate-pulse opacity-30"></div>
+                                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-cyan-400/10 to-transparent rounded-full -translate-y-20 translate-x-20"></div>
+                                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-violet-400/10 to-transparent rounded-full translate-y-16 -translate-x-16"></div>
+
+                                <div className="relative z-10">
+                                    <ModelSelector
+                                        value={{ provider: selectedProvider, model: selectedModel }}
+                                        onChange={(value) => {
+                                            setSelectedProvider(value.provider);
+                                            setSelectedModel(value.model);
+                                            setModelSelectorOpen(false);
+                                        }}
+                                        className="w-full"
+                                        lastRuntime={{
+                                            provider: selectedProvider,
+                                            model: selectedModel
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Footer with tips - Mobile Optimized */}
+                            <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-cyan-500/10 border border-white/10 rounded-xl sm:rounded-2xl backdrop-blur-sm">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg flex items-center justify-center border border-blue-400/30 flex-shrink-0">
+                                        <Icons.Info size={14} className="sm:w-4 sm:h-4 text-blue-300" />
+                                    </div>
+                                    <div className="space-y-1 flex-1 min-w-0">
+                                        <p className="text-sm font-bold text-white">💡 选择建议</p>
+                                        <div className="text-xs sm:text-sm text-gray-300 leading-relaxed space-y-1">
+                                            <div className="flex flex-col sm:flex-row sm:gap-4">
+                                                <span>• <strong>GROQ</strong> 适合快速对话</span>
+                                                <span>• <strong>OpenAI</strong> 适合高质量创作</span>
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row sm:gap-4">
+                                                <span>• <strong>Gemini</strong> 适合多模态分析</span>
+                                                <span>• <strong>Auto</strong> 智能自动选择</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* SQL Console Modal - Optimized for full screen utilization */}
+        {sqlConsoleOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-lg z-50 flex items-center justify-center p-2 animate-fade-in">
+                <div className="w-full h-full max-w-[98vw] max-h-[96vh] bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-slide-up-fade backdrop-blur-xl">
+                    <SQLConsole onClose={() => setSqlConsoleOpen(false)} />
+                </div>
+            </div>
+        )}
 
         <StorageMigrationModal
             isOpen={isStorageMigrationOpen}

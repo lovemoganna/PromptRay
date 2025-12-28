@@ -19,12 +19,15 @@ interface SidebarProps {
   onCloseMobile: () => void;
   isDesktopOpen: boolean;
   onToggleDesktop: () => void;
+  selectedProvider: string;
+  onModelSelectorOpen?: () => void; // Model selector callback
+  onSQLConsoleOpen?: () => void; // SQL console callback
 }
 
-const SidebarComponent: React.FC<SidebarProps> = ({ 
-    selectedCategory, 
+const SidebarComponent: React.FC<SidebarProps> = ({
+    selectedCategory,
     selectedTag,
-    onSelectCategory, 
+    onSelectCategory,
     onSelectTag,
     counts,
     topTags,
@@ -36,7 +39,10 @@ const SidebarComponent: React.FC<SidebarProps> = ({
     isMobileOpen,
     onCloseMobile,
     isDesktopOpen,
-    onToggleDesktop
+    onToggleDesktop,
+    selectedProvider,
+    onModelSelectorOpen,
+    onSQLConsoleOpen
 }) => {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -87,9 +93,36 @@ const SidebarComponent: React.FC<SidebarProps> = ({
 
       {/* Scrollable Content */}
       <div className="px-4 flex-1 overflow-y-auto custom-scrollbar">
-        {/* View Switcher */}
+        {/* View Switcher with Model Selector */}
         <div className="mb-6">
+            {/* View Switcher */}
             <div className="flex p-1 bg-white/5 rounded-lg border border-white/5 gap-1">
+                {/* Model Selector Button - positioned before the sidebar toggle */}
+                <button
+                    onClick={() => {
+                        // This will be handled by parent component
+                        if (onModelSelectorOpen) {
+                            onModelSelectorOpen();
+                            onCloseMobile();
+                        }
+                    }}
+                    className="flex items-center justify-center py-2 px-1 rounded-md transition-all duration-300 transform hover:scale-105 text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                    title="选择AI模型"
+                >
+                    <div className={`transition-all duration-300 rounded ${
+                        selectedProvider === 'auto' ? 'bg-yellow-500/10 hover:bg-yellow-500/20' :
+                        selectedProvider === 'gemini' ? 'bg-blue-500/10 hover:bg-blue-500/20' :
+                        selectedProvider === 'groq' ? 'bg-purple-500/10 hover:bg-purple-500/20' :
+                        'bg-green-500/10 hover:bg-green-500/20'
+                    } p-1`}>
+                        <Icons.Chip size={14} className={`transition-colors duration-300 ${
+                            selectedProvider === 'auto' ? 'text-yellow-400' :
+                            selectedProvider === 'gemini' ? 'text-blue-400' :
+                            selectedProvider === 'groq' ? 'text-purple-400' :
+                            'text-green-400'
+                        }`} />
+                    </div>
+                </button>
                 <button
                     onClick={() => { onViewChange('dashboard'); onCloseMobile(); }}
                     className={`flex-1 flex items-center justify-center py-2 px-1 rounded-md transition-all duration-300 transform hover:scale-105 ${
@@ -117,6 +150,15 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                 >
                     <Icons.Table size={16} />
                 </button>
+                {onSQLConsoleOpen && (
+                    <button
+                        onClick={() => { onSQLConsoleOpen(); onCloseMobile(); }}
+                        className="flex-1 flex items-center justify-center py-2 px-1 rounded-md transition-all duration-300 transform hover:scale-105 text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                        title="SQL Console"
+                    >
+                        <Icons.Database size={16} />
+                    </button>
+                )}
                 <button
                     onClick={() => { onToggleDesktop(); onCloseMobile(); }}
                     className="flex-1 flex items-center justify-center py-2 px-1 rounded-md transition-all duration-300 transform hover:scale-105 text-gray-500 hover:text-gray-300 hover:bg-white/5"
@@ -294,20 +336,12 @@ const SidebarComponent: React.FC<SidebarProps> = ({
             {sidebarContent}
         </aside>
 
-        {/* Desktop Sidebar - Use wrapper to ensure no space is taken when hidden */}
-        <div 
-            className="hidden md:block"
-            style={{ 
-                display: isDesktopOpen ? 'block' : 'none',
-                width: isDesktopOpen ? '16rem' : '0',
-                flexShrink: 0,
-                overflow: 'hidden'
-            }}
-        >
+        {/* Desktop Sidebar - Conditionally rendered for true fullscreen */}
+        <div className="hidden md:block w-64 flex-shrink-0 overflow-hidden">
             {isDesktopOpen && (
-                <aside className="w-64 flex-shrink-0 bg-transparent h-screen flex flex-col z-20 relative transition-all duration-300">
-            {sidebarContent}
-        </aside>
+                <aside className="w-64 flex-shrink-0 bg-transparent h-screen flex flex-col z-20 relative">
+                    {sidebarContent}
+                </aside>
             )}
         </div>
         

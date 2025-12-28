@@ -52,7 +52,13 @@ import {
   Table,
   ChevronUp,
   Settings,
-  Play
+  Play,
+  Database,
+  Info,
+  AlertCircle,
+  Loader2,
+  Target,
+  CheckCircle
 } from 'lucide-react';
 
 export const Icons = {
@@ -110,7 +116,13 @@ export const Icons = {
   ArrowUp,
   ArrowDown,
   Table,
-  ChevronUp
+  ChevronUp,
+  Database,
+  Info,
+  Warning: AlertCircle,
+  Loader: Loader2,
+  Target,
+  CheckCircle
 };
 
 export const getIconForCategory = (category: string) => {

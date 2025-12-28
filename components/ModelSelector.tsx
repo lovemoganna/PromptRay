@@ -556,7 +556,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             ];
 
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 lg:gap-6">
                 {platforms.map(platform => {
                   const models = groupedModels[platform.key];
                   const hasApiKey = platform.key === 'auto' || checkApiKeyAvailability(platform.key as ProviderKey);
@@ -567,7 +567,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   }
 
               return (
-                <div key={platform.key} className="bg-gray-900/70 border border-gray-700/60 rounded-2xl overflow-hidden hover:bg-gray-800/90 transition-all duration-300 shadow-lg hover:shadow-xl">
+                <div key={platform.key} className={`bg-gray-900/70 border rounded-2xl overflow-hidden hover:bg-gray-800/90 transition-all duration-300 shadow-lg hover:shadow-xl ${
+                  hasApiKey
+                    ? `border-gray-700/60 hover:border-${platform.color}-500/40 hover:shadow-${platform.color}-500/20`
+                    : 'border-gray-700/60'
+                }`}>
                   {/* Optimized Platform Header - Better alignment and contrast */}
                   <button
                     onClick={() => togglePlatformExpansion(platform.key)}
@@ -593,9 +597,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           {platform.label}
                         </h3>
                         {hasApiKey ? (
-                          <div className="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse shadow-green-400/60 shadow-[0_0_4px]"></div>
+                          <div className="relative">
+                            <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-green-400/80 shadow-[0_0_8px] ring-2 ring-green-400/40"></div>
+                            <div className="absolute inset-0 w-3 h-3 bg-green-300 rounded-full animate-ping opacity-30"></div>
+                          </div>
                         ) : (
-                          <div className="w-2.5 h-2.5 bg-gray-500 rounded-full"></div>
+                          <div className="w-2.5 h-2.5 bg-gray-500 rounded-full opacity-60"></div>
                         )}
                         {/* Optimized Model count badge */}
                         {hasApiKey && models.length > 0 && (
@@ -672,11 +679,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                                       {option.displayName}
                                     </h4>
 
-                                    {/* Model metrics and badges - 更紧凑的排列 */}
-                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                    {/* Model metrics and badges - 超紧凑排列 */}
+                                    <div className="flex items-center gap-1 flex-wrap">
                                       {/* Speed indicator */}
                                       {option.speed && (
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                                           option.speed === 'ultra-fast' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' :
                                           option.speed === 'fast' ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30' :
                                           option.speed === 'normal' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30' :
@@ -690,7 +697,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
                                       {/* Cost indicator */}
                                       {option.cost && (
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                                           option.cost === 'free' ? 'bg-green-500/20 text-green-300 border border-green-400/30' :
                                           option.cost === 'low' ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30' :
                                           option.cost === 'medium' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30' :
@@ -704,15 +711,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
                                       {/* Context window */}
                                       {option.contextWindow && (
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 font-medium">
+                                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30 font-medium">
                                           📏 {option.contextWindow >= 100000 ? `${(option.contextWindow/1000).toFixed(0)}K` : option.contextWindow}
                                         </span>
                                       )}
                                     </div>
 
-                                    {/* Description - 更靠近标签 */}
+                                    {/* Description - 紧贴标签 */}
                                     {option.description && (
-                                      <p className={`text-sm leading-snug mt-1 ${
+                                      <p className={`text-sm leading-snug mt-0.5 ${
                                         option.provider === value.provider && option.model === value.model
                                           ? 'text-blue-200'
                                           : 'text-gray-400 group-hover:text-gray-300'

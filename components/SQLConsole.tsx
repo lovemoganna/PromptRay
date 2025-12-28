@@ -3,6 +3,7 @@ import { Highlight, themes } from 'prism-react-renderer';
 import { Icons } from './Icons';
 import { useDuckDBSync } from '../hooks/useDuckDBSync';
 import { runGeminiPrompt } from '../services/geminiService';
+import { FOUNDATION, LAYOUT, COMPONENT_STYLES, colors } from './ui/styleTokens';
 
 // 历史与收藏Tab组件
 const HistoryAndFavoritesTab: React.FC<{
@@ -340,7 +341,9 @@ const SQLHighlightEditor: React.FC<{
   placeholder?: string;
   disabled?: boolean;
   className?: string;
-}> = ({ value, onChange, onKeyDown, placeholder, disabled, className }) => {
+  height?: string | number;
+  resizable?: boolean;
+}> = ({ value, onChange, onKeyDown, placeholder, disabled, className, height = '12rem', resizable = false }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
 
@@ -351,13 +354,20 @@ const SQLHighlightEditor: React.FC<{
     }
   };
 
+  const heightStyle = typeof height === 'number' ? `${height}px` : height;
+
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} style={{ height: heightStyle, minHeight: '8rem', maxHeight: '32rem' }}>
       {/* 语法高亮层 */}
       <pre
         ref={preRef}
         className="absolute inset-0 p-4 font-mono text-sm text-gray-200 pointer-events-none overflow-auto bg-transparent"
-        style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}
+        style={{
+          whiteSpace: 'pre-wrap',
+          wordWrap: 'break-word',
+          height: '100%',
+          resize: resizable ? 'vertical' : 'none'
+        }}
       >
         <Highlight
           theme={themes.vsDark}
@@ -395,12 +405,14 @@ const SQLHighlightEditor: React.FC<{
         onScroll={handleScroll}
         placeholder=""
         disabled={disabled}
-        className="relative inset-0 w-full h-full p-4 font-mono text-sm text-transparent bg-transparent border border-white/10 rounded-xl resize-none focus:outline-none focus:border-brand-500/60 focus:ring-1 focus:ring-brand-500/20 caret-white"
+        className={`relative inset-0 w-full h-full p-4 font-mono text-sm text-transparent bg-transparent border border-white/10 rounded-xl focus:outline-none focus:border-brand-500/60 focus:ring-1 focus:ring-brand-500/20 caret-white ${resizable ? 'resize-y' : 'resize-none'}`}
         style={{
           background: 'transparent',
           color: 'transparent',
           caretColor: 'white',
-          zIndex: 1
+          zIndex: 1,
+          minHeight: '8rem',
+          maxHeight: '32rem'
         }}
       />
 
@@ -408,6 +420,13 @@ const SQLHighlightEditor: React.FC<{
       {!value && placeholder && (
         <div className="absolute top-4 left-4 text-gray-500 pointer-events-none font-mono text-sm">
           {placeholder}
+        </div>
+      )}
+
+      {/* Resize handle hint */}
+      {resizable && (
+        <div className="absolute bottom-2 right-2 text-xs text-gray-500 opacity-50 pointer-events-none">
+          ⇅
         </div>
       )}
     </div>
@@ -1067,6 +1086,9 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
   const [history, setHistory] = useState<SQLHistoryItem[]>([]);
   const [favorites, setFavorites] = useState<FavoriteSQL[]>([]);
 
+  // 编辑器配置状态
+  const [editorHeight, setEditorHeight] = useState<number>(192); // 默认12rem (192px)
+
   // 初始化和数据加载
   useEffect(() => {
     if (isInitialized) {
@@ -1251,24 +1273,24 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
   }
 
   return (
-    <div className={`h-full bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col ${className}`}>
+    <div className={`h-full ${colors.bg.cardDarker} ${colors.border.light} ${FOUNDATION.borderRadius['2xl']} ${LAYOUT.elevation.max} overflow-hidden flex flex-col ${className}`}>
       {/* Header - Compact spacing */}
       <div className="relative bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-blue-500/10 border-b border-white/10 flex-shrink-0">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
-        <div className="relative flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30">
-              <Icons.Database size={20} className="text-brand-400" />
+        <div className="relative flex items-center justify-between p-3 sm:p-4">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-brand-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-brand-500/30 flex-shrink-0">
+              <Icons.Database size={18} className="sm:w-5 sm:h-5 text-brand-400" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">DuckDB 数据控制台</h1>
-              <p className="text-sm text-gray-400">数据分析 • SQL 工作台 • 执行历史</p>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl font-bold text-white truncate">DuckDB 数据控制台</h1>
+              <p className="text-xs sm:text-sm text-gray-400 hidden sm:block">数据分析 • SQL 工作台 • 执行历史</p>
             </div>
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 transform hover:scale-105"
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200 transform hover:scale-105 touch-manipulation ml-2 flex-shrink-0"
             >
               <Icons.Close size={20} />
             </button>
@@ -1276,8 +1298,8 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
         </div>
       </div>
 
-      {/* TAB Navigation - Compact and efficient */}
-      <div className="bg-gray-900/60 border-b border-white/5 flex-shrink-0">
+      {/* TAB Navigation - Using design tokens */}
+      <div className={`${colors.bg.surface} ${colors.border.lighter} border-b flex-shrink-0`}>
         <div className="flex">
           {[
             { id: 'analysis' as TabType, label: '💬 数据分析', icon: Icons.Analysis },
@@ -1313,30 +1335,34 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                     <Icons.Code size={20} className="text-brand-400" />
                     SQL 编辑器
                   </h3>
-                  <div className="text-xs text-gray-500 bg-gray-800/50 px-2 py-1 rounded">
-                    Ctrl+Enter 执行
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="bg-gray-800/50 px-2 py-1 rounded">Ctrl+Enter 执行</span>
+                    <span className="bg-gray-800/50 px-2 py-1 rounded hidden sm:inline">Ctrl+/ 格式化</span>
+                    <span className="bg-gray-800/50 px-2 py-1 rounded hidden md:inline">⇅ 可调节高度</span>
                   </div>
                 </div>
 
-                {/* SQL 语法高亮编辑器 - Flexible height */}
+                {/* SQL 语法高亮编辑器 - Resizable height */}
                 <SQLHighlightEditor
                   value={query}
                   onChange={setQuery}
                   onKeyDown={handleKeyDown}
                   placeholder="输入 DuckDB SQL 查询..."
                   disabled={isExecuting}
-                  className="w-full h-48 lg:h-56"
+                  className="w-full"
+                  height={editorHeight}
+                  resizable={true}
                 />
 
-                {/* Action Buttons - 改善对齐和对比度 */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                {/* Action Buttons - Mobile responsive */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <button
                       onClick={clearResult}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-700/80 hover:bg-gray-600/80 text-gray-300 hover:text-white text-sm rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200"
+                      className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 ${colors.bg.muted} hover:${colors.bg.surface} ${colors.text.secondary} hover:${colors.text.primary} text-sm ${FOUNDATION.borderRadius.lg} ${colors.border.light} hover:${colors.border.primary} transition-all duration-200 min-h-[44px] touch-manipulation`}
                     >
                       <Icons.Trash size={14} />
-                      清空结果
+                      <span className="hidden xs:inline">清空结果</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1349,18 +1375,18 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                         setQuery(formatted);
                       }}
                       disabled={!query.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-purple-700/80 hover:bg-purple-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-purple-300 hover:text-white disabled:cursor-not-allowed text-sm rounded-lg border border-purple-500/30 hover:border-purple-400/50 disabled:border-gray-600/30 transition-all duration-200"
+                      className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-purple-700/80 hover:bg-purple-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-purple-300 hover:text-white disabled:cursor-not-allowed text-sm rounded-lg border border-purple-500/30 hover:border-purple-400/50 disabled:border-gray-600/30 transition-all duration-200 min-h-[44px] touch-manipulation"
                     >
                       <Icons.Code size={14} />
-                      格式化
+                      <span className="hidden xs:inline">格式化</span>
                     </button>
                     <button
                       onClick={() => addToFavorites(query)}
                       disabled={!query.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-yellow-700/80 hover:bg-yellow-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-yellow-300 hover:text-white disabled:cursor-not-allowed text-sm rounded-lg border border-yellow-500/30 hover:border-yellow-400/50 disabled:border-gray-600/30 transition-all duration-200"
+                      className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-yellow-700/80 hover:bg-yellow-600/80 disabled:bg-gray-700/50 disabled:text-gray-500 text-yellow-300 hover:text-white disabled:cursor-not-allowed text-sm rounded-lg border border-yellow-500/30 hover:border-yellow-400/50 disabled:border-gray-600/30 transition-all duration-200 min-h-[44px] touch-manipulation"
                     >
                       <Icons.Star size={14} />
-                      添加收藏
+                      <span className="hidden xs:inline">收藏</span>
                     </button>
                   </div>
 
@@ -1368,7 +1394,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                   <button
                     onClick={executeQuery}
                     disabled={!query.trim() || isExecuting}
-                    className="flex items-center gap-2 px-6 py-2 bg-brand-600 hover:bg-brand-500 disabled:bg-gray-700/50 disabled:text-gray-500 text-white disabled:cursor-not-allowed text-sm font-medium rounded-lg border border-brand-500/50 hover:border-brand-400/70 disabled:border-gray-600/30 transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-2 bg-brand-600 hover:bg-brand-500 disabled:bg-gray-700/50 disabled:text-gray-500 text-white disabled:cursor-not-allowed text-sm font-medium rounded-lg border border-brand-500/50 hover:border-brand-400/70 disabled:border-gray-600/30 transition-all duration-200 shadow-sm hover:shadow-md min-h-[44px] touch-manipulation w-full sm:w-auto"
                   >
                     {isExecuting ? (
                       <>
@@ -1490,7 +1516,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                       <Icons.Code size={20} className="text-brand-400" />
                       SQL 查询模板
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                       {/* 基础查询 */}
                       <div className="space-y-3">
                         <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">

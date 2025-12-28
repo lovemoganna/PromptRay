@@ -1414,10 +1414,10 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* SQL Console Modal - Optimized for full screen utilization */}
+        {/* SQL Console Modal - Optimized responsive sizing */}
         {sqlConsoleOpen && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-lg z-50 flex items-center justify-center p-2 animate-fade-in">
-                <div className="w-full h-full max-w-[98vw] max-h-[96vh] bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-slide-up-fade backdrop-blur-xl">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-lg z-50 flex items-center justify-center p-2 sm:p-4 animate-fade-in">
+                <div className="w-full h-full max-w-7xl max-h-[90vh] bg-gray-900/98 border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-slide-up-fade backdrop-blur-xl">
                     <SQLConsole onClose={() => setSqlConsoleOpen(false)} />
                 </div>
             </div>

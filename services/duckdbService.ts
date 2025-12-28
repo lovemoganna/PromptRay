@@ -3,8 +3,8 @@ import { getPrompts } from './storageService';
 
 // DuckDB WASM imports
 import * as duckdb from '@duckdb/duckdb-wasm';
-import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
-import duckdb_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
+import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm';
+import duckdb_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js';
 
 // DuckDB 实例
 let db: duckdb.AsyncDuckDB | null = null;
@@ -24,12 +24,8 @@ export async function initializeDuckDB(): Promise<void> {
 
     // 初始化 worker 和 WASM
     await db.instantiate(
-      duckdb_worker,
       duckdb_wasm,
-      {
-        persistent: true, // 启用持久化存储
-        persistentStorage: 'indexeddb' // 使用 IndexedDB 作为底层存储
-      }
+      duckdb_worker
     );
 
     // 创建数据库表

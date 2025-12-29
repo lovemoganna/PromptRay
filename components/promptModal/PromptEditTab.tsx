@@ -344,8 +344,8 @@ export const PromptEditTab: React.FC<PromptEditTabProps> = ({
                 disabled={!isFormValid}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-1.5 relative overflow-hidden group ${
                   isFormValid
-                    ? 'bg-gradient-to-r from-[var(--color-brand-primary)]/80 to-[var(--color-brand-secondary)]/80 hover:from-[var(--color-brand-primary)]/90 hover:to-[var(--color-brand-secondary)]/90 text-white border border-[var(--color-brand-primary)]/50 hover:border-[var(--color-brand-primary)]/70'
-                    : 'bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 disabled:opacity-50'
+                    ? 'bg-gradient-to-r from-[var(--color-brand-primary)]/80 to-[var(--color-brand-secondary)]/80 hover:from-[var(--color-brand-primary)]/90 hover:to-[var(--color-brand-secondary)]/90 text-white'
+                    : 'bg-red-500/15 text-red-300 disabled:opacity-50'
                 }`}
                 title={!isFormValid ? getValidationMessage() : "保存更改"}
               >
@@ -355,10 +355,8 @@ export const PromptEditTab: React.FC<PromptEditTabProps> = ({
                   保存
                 </span>
               </button>
-            </div>
-
               <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
-              {/* 自动保存开关组件 - 移入玻璃态容器 */}
+              {/* 自动保存开关组件 - 在玻璃态容器内部 */}
               <div className="flex items-center gap-2 px-2">
                 <span className={`text-xs font-medium text-[var(--color-text-secondary)]`}>自动保存</span>
                 <div className="flex items-center gap-2">
@@ -391,6 +389,7 @@ export const PromptEditTab: React.FC<PromptEditTabProps> = ({
                   }`}></div>
                 </div>
               </div>
+            </div>
 
           {/* 移动端：垂直排列，全宽按钮 */}
           <div className="flex flex-col gap-2 sm:hidden w-full max-w-xs mx-auto">

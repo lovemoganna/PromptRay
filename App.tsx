@@ -1211,14 +1211,8 @@ const App: React.FC = () => {
                     <div className="max-h-[85vh] overflow-y-auto custom-scrollbar">
                         {/* Enhanced Model Selection Section - Mobile Optimized */}
                         <div className="p-4 sm:p-8">
-<<<<<<< Updated upstream
-
-                            {/* Enhanced Model Selector Container with focus feedback - Mobile Optimized */}
-                            <div className={`relative bg-gradient-to-br from-gray-800/40 via-slate-800/35 to-gray-800/40 border rounded-2xl sm:rounded-3xl pt-2 sm:pt-4 p-4 sm:p-8 shadow-2xl backdrop-blur-sm overflow-hidden transition-all duration-300 ${
-=======
                             {/* Enhanced Model Selector Container with focus feedback - Mobile Optimized */}
                             <div className={`relative bg-[var(--color-bg-secondary)] border-[var(--color-border-primary)] rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-2xl backdrop-blur-sm overflow-hidden transition-all duration-300 ${
->>>>>>> Stashed changes
                                 modelSelectorFocusMode === 'selection'
                                     ? 'border-blue-400/50 ring-2 ring-blue-400/20 shadow-blue-500/30'
                                     : 'border-white/10'

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Prompt, PromptFormData, PromptConfig, PromptVersion, SavedRun, Theme } from '../types';
-import { useApp } from '../contexts/AppContext';
 import { Icons } from './Icons';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CodeSnippetsModal } from './CodeSnippetsModal';
@@ -34,7 +33,6 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   isOpen, onClose, onSave, initialData, onDuplicate, onNotify, allCategories, allAvailableTags,
   onNext, onPrev, hasNext, hasPrev, currentTheme
 }) => {
-  const { state } = useApp();
   const [formData, setFormData] = useState<PromptFormData>({
     title: '',
     description: '',
@@ -962,7 +960,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
       <div className={`w-full rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border-primary)] shadow-xl flex flex-col max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-3rem)] relative animate-slide-up-fade text-[var(--color-text-primary)] mt-2 md:mt-4 overflow-y-auto custom-scrollbar ${
         !state.isDesktopSidebarOpen
           ? 'max-w-[180vw] md:max-w-[calc(100vw-2rem)] lg:max-w-[calc(100vw-3rem)] xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[1600px]'
-          : 'max-w-[180vw] md:max-w-[calc(180vw-280px)] lg:max-w-5xl xl:max-w-6xl 2xl:max-w-[1400px]'
+          : 'max-w-[180vw] md:max-w-[calc(100vw-16rem-2rem)] lg:max-w-[calc(100vw-16rem-3rem)] xl:max-w-[calc(100vw-16rem-4rem)] 2xl:max-w-[calc(100vw-16rem-6rem)]'
       }`} data-modal-panel>
         {/* Header：简化为纯色条，减少视觉干扰 */}
         <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 px-4 sm:px-6 md:px-8 lg:px-6 py-4 sm:py-6 md:py-8 border-b border-[var(--color-border-primary)] shrink-0 bg-[var(--color-bg-secondary)] z-10 relative" data-modal-header>

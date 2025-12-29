@@ -80,14 +80,19 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
           <div className={`w-2 h-2 rounded-full ${SECTION_STYLES.icons.indicator.variants.purple}`}></div>
           元数据
         </h3>
-        <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
-          {onAutoMetadata && (
-            <>
+        {/* 智能补全控制面板 - 重新设计的布局 */}
+        <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border-primary)] rounded-lg p-3 backdrop-blur-sm">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* 字段选择器 */}
+            <div className="flex items-center gap-2">
+              <label className={`${SECTION_STYLES.content.fieldLabel} ${SECTION_STYLES.content.fieldLabelColor} whitespace-nowrap`}>
+                选择字段
+              </label>
               <select
                 value={autoTarget}
                 onChange={(e) => setAutoTarget(e.target.value)}
                 aria-label="选择要自动补全的字段（可选）"
-                className="w-auto min-w-0 bg-[var(--color-bg-primary)] border border-[var(--color-border-primary)] rounded-md px-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand-primary)]/50 focus:ring-1 focus:ring-[var(--color-brand-primary)]/30 transition-all appearance-none cursor-pointer"
+                className={`${SECTION_STYLES.content.select} min-w-[120px] bg-[var(--color-bg-primary)] border-[var(--color-border-primary)]`}
               >
                 <option value="">选择字段</option>
                 <option value="all">全部</option>
@@ -102,7 +107,11 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
                 <option value="version">版本</option>
                 <option value="evaluation">评估</option>
               </select>
-              {/* 智能补全按钮 - 主要操作 */}
+            </div>
+
+            {/* 操作按钮组 */}
+            <div className="flex items-center gap-2">
+              {/* 智能补全按钮 - 主操作 */}
               <button
                 onClick={async () => {
                   if (!onAutoMetadata || !autoTarget) return;
@@ -142,21 +151,33 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
                   }
                 }}
                 disabled={isAutoMetaLoading || !autoTarget}
-                className={SECTION_STYLES.buttons.primary}
+                className={`${SECTION_STYLES.buttons.primary} ${isAutoMetaLoading ? 'animate-pulse' : ''} min-h-[36px] px-4`}
               >
-                {isAutoMetaLoading ? '补全中...' : '智能补全'}
+                {isAutoMetaLoading ? (
+                  <>
+                    <div className="w-4 h-4 border border-white/40 border-t-white rounded-full animate-spin mr-2"></div>
+                    补全中...
+                  </>
+                ) : (
+                  <>
+                    <Icons.Sparkles size={14} className="mr-1" />
+                    智能补全
+                  </>
+                )}
               </button>
 
               {/* 调试API按钮 - 次级操作 */}
               <button
                 onClick={() => debugEnvironmentVariables()}
-                className={SECTION_STYLES.buttons.secondary}
+                className={`${SECTION_STYLES.buttons.secondary} min-h-[36px] px-3`}
                 title="调试环境变量"
               >
+                <Icons.Code size={14} className="mr-1" />
                 调试API
               </button>
-            </>
-          )}
+            </div>
+          </div>
+        </div>
           {/* auto-tag button intentionally removed per design: tagging remains possible via parent controls */}
         </div>
       </div>

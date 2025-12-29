@@ -357,47 +357,40 @@ export const PromptEditTab: React.FC<PromptEditTabProps> = ({
               </button>
             </div>
 
-            {/* 自动保存开关组件 - 优化布局和视觉一致性 */}
-            <div className="flex items-center bg-[var(--color-bg-secondary)] border border-[var(--color-border-primary)] rounded-xl px-3 py-2 backdrop-blur-md shadow-lg">
-              <span className={`text-xs font-medium mr-3 ${SECTION_STYLES.content.fieldLabelColor}`}>自动保存</span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => onToggleAutoSave && onToggleAutoSave()}
-                  disabled={isAutoSaving}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)]/50 focus:ring-offset-1 focus:ring-offset-[var(--color-bg-primary)] disabled:opacity-50 ${
-                    isAutoSaveEnabled
-                      ? 'bg-[var(--color-brand-primary)] shadow-lg'
-                      : 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'
-                  } ${isAutoSaving ? 'animate-pulse' : ''}`}
-                  title={isAutoSaveEnabled ? '关闭自动保存' : '开启自动保存'}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                      isAutoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                  {/* 加载状态指示器 */}
-                  {isAutoSaving && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 border border-white/40 border-t-white rounded-full animate-spin"></div>
-                    </div>
-                  )}
-                </button>
-                {/* 状态指示器和文字 */}
+              <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
+              {/* 自动保存开关组件 - 移入玻璃态容器 */}
+              <div className="flex items-center gap-2 px-2">
+                <span className={`text-xs font-medium ${SECTION_STYLES.content.fieldLabelColor}`}>自动保存</span>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onToggleAutoSave && onToggleAutoSave()}
+                    disabled={isAutoSaving}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)]/50 focus:ring-offset-1 focus:ring-offset-[var(--color-bg-primary)] disabled:opacity-50 ${
+                      isAutoSaveEnabled
+                        ? 'bg-[var(--color-brand-primary)] shadow-lg'
+                        : 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'
+                    } ${isAutoSaving ? 'animate-pulse' : ''}`}
+                    title={isAutoSaveEnabled ? '关闭自动保存' : '开启自动保存'}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
+                        isAutoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                    {/* 加载状态指示器 */}
+                    {isAutoSaving && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-2.5 h-2.5 border border-white/40 border-t-white rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                  </button>
+                  {/* 仅保留颜色指示器，移除文字 */}
                   <div className={`w-2 h-2 rounded-full ${
                     isAutoSaving ? 'bg-[var(--color-brand-primary)] animate-pulse' :
                     isAutoSaveEnabled ? 'bg-green-400' : 'bg-gray-400'
                   }`}></div>
-                  <span className={`text-xs font-medium transition-colors ${
-                    isAutoSaving ? 'text-[var(--color-brand-primary)]' :
-                    isAutoSaveEnabled ? 'text-green-300' : 'text-[var(--color-text-muted)]'
-                  }`}>
-                    {isAutoSaving ? '保存中' : (isAutoSaveEnabled ? '已开启' : '已关闭')}
-                  </span>
                 </div>
               </div>
-            </div>
 
           {/* 移动端：垂直排列，全宽按钮 */}
           <div className="flex flex-col gap-2 sm:hidden w-full max-w-xs mx-auto">

@@ -1119,11 +1119,11 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
           </div>
         </div>
 
-        {/* Enhanced Content Area: 左列主内容 + 右列元数据（响应式） */}
+        {/* Enhanced Content Area: 主内容区域（全宽度） */}
         <div className="flex-1 min-h-0" data-modal-body>
-          <div className="h-full flex flex-col lg:flex-row">
-            {/* Left column: 主内容（自适应宽度） */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-2 sm:px-3 md:px-4 lg:px-6 xl:px-8 py-2 sm:py-3 md:py-4 lg:py-6 xl:py-8 custom-scrollbar bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]">
+          <div className="h-full">
+            {/* 主内容区域（占据100%宽度） */}
+            <div className="w-full min-h-0 overflow-y-auto px-1 sm:px-2 md:px-3 lg:px-4 xl:px-6 py-1 sm:py-2 md:py-3 lg:py-4 xl:py-6 custom-scrollbar bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]">
               {activeTab === 'preview' && (
                 <PromptPreviewTab
                   formData={formData}

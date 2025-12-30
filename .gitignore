@@ -1,59 +1,282 @@
-# Logs
-logs
-*.log
+# =============================================================================
+# 技术栈: React + TypeScript + Vite + Jest + DuckDB WASM
+# =============================================================================
+
+# =============================================================================
+# 依赖包管理
+# =============================================================================
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
-# Dependencies
-node_modules
+.yarn/
 .pnp
 .pnp.js
+.pnp.loader.mjs
 
-# Build Output
-dist
-dist-ssr
-*.local
+# =============================================================================
+# 构建输出和分发
+# =============================================================================
+dist/
+dist-ssr/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.vercel/
+.netlify/
 
-# Editor directories and files
+# =============================================================================
+# 环境变量和配置
+# =============================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+!.env.example
+!.env.template
+
+# API密钥和敏感配置
+*.key
+*.pem
+*.crt
+secrets.json
+config.local.*
+
+# =============================================================================
+# TypeScript
+# =============================================================================
+*.tsbuildinfo
+.tscache/
+*.d.ts.map
+
+# =============================================================================
+# 测试覆盖率和报告
+# =============================================================================
+coverage/
+.nyc_output/
+*.lcov
+.coverage/
+coverage.lcov
+jest-coverage/
+
+# =============================================================================
+# IDE 和编辑器
+# =============================================================================
+# VS Code
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+!.vscode/settings.template.json
+!.vscode/launch.template.json
 
-# Local tools / IDE / cache
+# Cursor IDE
 .cursor/
-.playwright-mcp/
-*.tsbuildinfo
-.gemini/
+.cursorignore
 
-# Env & local config
-.env
-.env.*
-!.env.example
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
 
-# OS / System
-thumbs.db
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# Visual Studio
+*.suo
+*.user
+*.aps
+*.pch
+*.vspscc
+*_i.c
+*_p.c
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.tmp
+*.tmp_proj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# =============================================================================
+# 操作系统文件
+# =============================================================================
+# Windows
+Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
-# GitHub Pages
-.github/
-!.github/workflows/
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Temporary files
-*.tmp
-*.temp
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# 日志文件
+# =============================================================================
+logs/
+*.log
+log/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# =============================================================================
+# 缓存和临时文件
+# =============================================================================
 .cache/
 .parcel-cache/
+.vite/
+.eslintcache
+.stylelintcache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.temp/
+.tmp/
+*.tmp
+*.temp
+.cache-loader/
 
-# Build artifacts (keep dist for GitHub Pages deployment)
-# dist/  # Uncomment this line if you want to ignore dist locally
+# =============================================================================
+# 包管理器缓存
+# =============================================================================
+.yarn/cache
+.yarn/install-state.gz
+.pnpm-store/
+.npm/
+.yarn-integrity
+
+# =============================================================================
+# 本地工具和开发环境
+# =============================================================================
+# Playwright
+.playwright-mcp/
+test-results/
+playwright-report/
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+
+# Storybook
+storybook-static/
+.out/
+
+# =============================================================================
+# 数据库和数据文件
+# =============================================================================
+# DuckDB
+*.duckdb
+*.duckdb.wasm
+*.db
+*.sqlite
+*.sqlite3
+
+# 本地数据文件（如果有敏感数据）
+data/local/
+data/private/
+*.backup
+*.bak
+
+# =============================================================================
+# 文档生成
+# =============================================================================
+docs/build/
+docs/.vuepress/dist/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# =============================================================================
+# 其他
+# =============================================================================
+# 锁定文件（通常不需要版本控制，除非是library项目）
+# package-lock.json  # 如果是应用项目，可以注释掉这行
+# yarn.lock
+
+# 本地SSL证书
+*.p12
+*.pfx
+
+# 压缩文件
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# 备份文件
+*.orig
+*.rej
+*~
+
+# =============================================================================
+# 项目特定忽略
+# =============================================================================
+# 如果dist用于GitHub Pages部署，可以取消注释下面这行
+# dist/
+
+# 调试文件
+debug.html
+debug-*.html
+*.debug.js
+*.debug.ts

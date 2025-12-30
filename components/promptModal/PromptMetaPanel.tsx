@@ -74,7 +74,7 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
   // evaluation is stored under extracted (editable textarea). previous tag-based UI removed.
 
   return (
-    <div className={`${SECTION_STYLES.container.base} ${SECTION_STYLES.container.accent.meta} ${SECTION_STYLES.container.padding} ${SECTION_STYLES.container.spacing}`}>
+    <div className={`${SECTION_STYLES.container.base} ${SECTION_STYLES.container.accent.meta} p-5 space-y-4`}>
       <div className="flex items-center justify-between gap-2 sm:gap-3 md:gap-4 min-h-[56px]">
         <h3 className={`${SECTION_STYLES.content.sectionTitle} ${SECTION_STYLES.content.sectionTitleColor} flex items-center gap-2 mb-0`}>
           <div className={`w-2 h-2 rounded-full ${SECTION_STYLES.icons.indicator.variants.purple}`}></div>
@@ -144,11 +144,10 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
                   }
                 }}
                 disabled={isAutoMetaLoading || !autoTarget}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-1.5 relative overflow-hidden group ${
-                  isAutoMetaLoading
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center gap-1.5 relative overflow-hidden group ${isAutoMetaLoading
                     ? 'bg-gradient-to-r from-[var(--color-brand-primary)]/80 to-[var(--color-brand-secondary)]/80 text-white animate-pulse'
                     : 'bg-gradient-to-r from-[var(--color-brand-primary)]/80 to-[var(--color-brand-secondary)]/80 hover:from-[var(--color-brand-primary)]/90 hover:to-[var(--color-brand-secondary)]/90 text-white'
-                }`}
+                  }`}
               >
                 {isAutoMetaLoading ? '补全中...' : '智能补全'}
               </button>
@@ -167,10 +166,10 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
       </div>
 
       {/* Metadata form: three groups (语义定义 / 质量控制 / 工程与管理) */}
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-3">
         {/* 语义定义 */}
-        <div className="bg-gray-950/60 border border-white/10 rounded-lg p-3 sm:p-4 border-l-4 border-l-blue-400/50">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-3">
+        <div className="bg-gray-950/60 border border-white/10 rounded-lg p-2.5 sm:p-3 border-l-4 border-l-blue-400/50">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* 语义定义标题占据整行 */}
             <div className="md:col-span-2">
               <div className="p-0 bg-transparent transition-all">
@@ -329,8 +328,8 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
         </div>
 
         {/* 质量控制 */}
-        <div className="bg-gray-950/60 border border-white/10 rounded-lg p-3 sm:p-4 border-l-4 border-l-green-400/50">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-3">
+        <div className="bg-gray-950/60 border border-white/10 rounded-lg p-2.5 sm:p-3 border-l-4 border-l-green-400/50">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* 质量控制标题占据整行 */}
             <div className="md:col-span-2">
               <div className="p-0 bg-transparent transition-all">
@@ -371,9 +370,8 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
                       e.target.textContent = formData.cautions || '';
                     }
                   }}
-                  className={`w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/50 leading-relaxed whitespace-pre-wrap overflow-y-auto ${
-                    isLongContent(formData.cautions || '') && !expandedFields['cautions'] ? 'max-h-[400px] overflow-hidden' : 'min-h-[2.5rem]'
-                  }`}
+                  className={`w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/50 leading-relaxed whitespace-pre-wrap overflow-y-auto ${isLongContent(formData.cautions || '') && !expandedFields['cautions'] ? 'max-h-[400px] overflow-hidden' : 'min-h-[2.5rem]'
+                    }`}
                   style={{
                     minHeight: getMinHeight()
                   }}
@@ -431,9 +429,8 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
                       e.target.textContent = (formData.extracted?.constraints || []).join('\n') || '';
                     }
                   }}
-                  className={`w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/50 leading-relaxed whitespace-pre-wrap overflow-y-auto ${
-                    isLongContent((formData.extracted?.constraints || []).join('\n')) && !expandedFields['constraints'] ? 'max-h-[400px] overflow-hidden' : 'min-h-[2.5rem]'
-                  }`}
+                  className={`w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500/50 leading-relaxed whitespace-pre-wrap overflow-y-auto ${isLongContent((formData.extracted?.constraints || []).join('\n')) && !expandedFields['constraints'] ? 'max-h-[400px] overflow-hidden' : 'min-h-[2.5rem]'
+                    }`}
                   style={{
                     minHeight: getMinHeight()
                   }}
@@ -472,7 +469,7 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
 
         {/* 工程与管理 */}
         <div className="bg-gray-950/60 border border-white/10 rounded-lg p-3 sm:p-4 border-l-4 border-l-purple-400/50">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* 工程与管理标题占据整行 */}
             <div className="md:col-span-2">
               <div className="p-0 bg-transparent transition-all">
@@ -547,9 +544,8 @@ export const PromptMetaPanel: React.FC<PromptMetaPanelProps> = (props) => {
                       e.target.textContent = (formData.extracted as any)?.evaluation || '';
                     }
                   }}
-                  className={`w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 leading-relaxed whitespace-pre-wrap overflow-y-auto ${
-                    isLongContent((formData.extracted as any)?.evaluation || '') && !expandedFields['evaluation'] ? 'max-h-[400px] overflow-hidden' : 'min-h-[2.5rem]'
-                  }`}
+                  className={`w-full bg-gray-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 leading-relaxed whitespace-pre-wrap overflow-y-auto ${isLongContent((formData.extracted as any)?.evaluation || '') && !expandedFields['evaluation'] ? 'max-h-[400px] overflow-hidden' : 'min-h-[2.5rem]'
+                    }`}
                   style={{
                     minHeight: getMinHeight()
                   }}

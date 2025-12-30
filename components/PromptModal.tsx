@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react';
 import { Prompt, PromptFormData, PromptConfig, PromptVersion, SavedRun, Theme } from '../types';
-import { useApp } from '../contexts/AppContext';
 import { Icons } from './Icons';
 import { ConfirmDialog } from './ConfirmDialog';
 import { CodeSnippetsModal } from './CodeSnippetsModal';
@@ -13,6 +12,7 @@ import { PromptEditTab } from './promptModal/PromptEditTab';
 import { usePromptMetaAndTags } from './promptModal/usePromptMetaAndTags';
 import { usePromptExamplesLogic } from './promptModal/usePromptExamplesLogic';
 import { runGeminiPromptStream, generateSampleVariables } from '../services/geminiService';
+import { useApp } from '../contexts/AppContext';
 
 interface PromptModalProps {
   isOpen: boolean;
@@ -30,10 +30,13 @@ interface PromptModalProps {
   currentTheme?: Theme; // Current theme for share image
 }
 
-const PromptModalComponent: React.FC<PromptModalProps> = ({
+const PromptModalComponent: React.FC<PromptModalProps> = memo(({
   isOpen, onClose, onSave, initialData, onDuplicate, onNotify, allCategories, allAvailableTags,
   onNext, onPrev, hasNext, hasPrev, currentTheme
 }) => {
+  // Early returns must happen BEFORE any hooks are called
+  if (!isOpen) return null;
+
   const { state } = useApp();
   const [formData, setFormData] = useState<PromptFormData>({
     title: '',
@@ -325,48 +328,18 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   // 检测未保存更改和异常恢复机制
   useEffect(() => {
     if (lastStableSnapshot && isOpen) {
-      // 深度比较当前状态和最后稳定快照
-      const hasChanges = JSON.stringify({
-        title: formData.title,
-        description: formData.description,
-        content: formData.content,
-        systemInstruction: formData.systemInstruction,
-        examples: formData.examples,
-        extracted: formData.extracted,
-        tags: formData.tags,
-        category: formData.category,
-        outputType: formData.outputType,
-        applicationScene: formData.applicationScene,
-        technicalTags: formData.technicalTags,
-        styleTags: formData.styleTags,
-        customLabels: formData.customLabels,
-        usageNotes: formData.usageNotes,
-        cautions: formData.cautions,
-        recommendedModels: formData.recommendedModels,
-        config: formData.config,
-      }) !== JSON.stringify({
-        title: lastStableSnapshot.title,
-        description: lastStableSnapshot.description,
-        content: lastStableSnapshot.content,
-        systemInstruction: lastStableSnapshot.systemInstruction,
-        examples: lastStableSnapshot.examples,
-        extracted: lastStableSnapshot.extracted,
-        tags: lastStableSnapshot.tags,
-        category: lastStableSnapshot.category,
-        outputType: lastStableSnapshot.outputType,
-        applicationScene: lastStableSnapshot.applicationScene,
-        technicalTags: lastStableSnapshot.technicalTags,
-        styleTags: lastStableSnapshot.styleTags,
-        customLabels: lastStableSnapshot.customLabels,
-        usageNotes: lastStableSnapshot.usageNotes,
-        cautions: lastStableSnapshot.cautions,
-        recommendedModels: lastStableSnapshot.recommendedModels,
-        config: lastStableSnapshot.config,
-      });
+      // 使用简单的字符串比较来检测变化，避免复杂的JSON.stringify
+      const currentHash = `${formData.title}|${formData.description}|${formData.content}|${formData.systemInstruction}`;
+      const snapshotHash = `${lastStableSnapshot.title}|${lastStableSnapshot.description}|${lastStableSnapshot.content}|${lastStableSnapshot.systemInstruction}`;
+
+      const hasChanges = currentHash !== snapshotHash ||
+        JSON.stringify(formData.examples) !== JSON.stringify(lastStableSnapshot.examples) ||
+        JSON.stringify(formData.tags) !== JSON.stringify(lastStableSnapshot.tags) ||
+        formData.category !== lastStableSnapshot.category;
 
       setHasUnsavedChanges(hasChanges);
     }
-  }, [formData, lastStableSnapshot, isOpen]);
+  }, [formData.title, formData.description, formData.content, formData.systemInstruction, formData.examples, formData.tags, formData.category, lastStableSnapshot, isOpen]);
 
   // 异常检测和自动恢复机制
   useEffect(() => {
@@ -392,10 +365,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   const autoSaveFormDataTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     // 只有在编辑现有 prompt 时才自动保存
-    if (!initialData || !isOpen || !isAutoSaveEnabled) return;
-
-    // 如果没有未保存的更改，不需要自动保存
-    if (!hasUnsavedChanges) return;
+    if (!initialData || !isOpen || !isAutoSaveEnabled || !hasUnsavedChanges) return;
 
     // 清除之前的定时器
     if (autoSaveFormDataTimeoutRef.current) {
@@ -428,19 +398,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
         clearTimeout(autoSaveFormDataTimeoutRef.current);
       }
     };
-  }, [
-    JSON.stringify(formData.examples), // 使用 JSON.stringify 来深度比较
-    formData.content,
-    formData.systemInstruction,
-    JSON.stringify(formData.config),
-    JSON.stringify(formData.extracted || {}), // ensure metadata changes trigger autosave
-    isOpen,
-    initialData?.id, // 只依赖 id，避免对象引用变化
-    JSON.stringify(savedRuns),
-    JSON.stringify(variableValues),
-    hasUnsavedChanges, // 只有在有未保存更改时才自动保存
-    isAutoSaveEnabled // 只有启用自动保存时才工作
-  ]);
+  }, [hasUnsavedChanges, isOpen, isAutoSaveEnabled, initialData?.id]);
 
   // Cleanup: Cancel any ongoing requests when modal closes
   useEffect(() => {
@@ -942,8 +900,31 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
     });
   };
 
-  if (!isOpen) return null;
 
+  // Calculate modal positioning based on sidebar state
+  const modalContainerClass = useMemo(() => {
+    if (!state.isDesktopSidebarOpen) {
+      // Sidebar is hidden - modal takes full viewport
+      return 'fixed inset-0 z-50 flex items-start justify-center';
+    } else {
+      // Sidebar is visible - modal starts after sidebar (16rem = 256px, ml-64 = 16rem)
+      return 'fixed inset-0 z-50 flex items-start justify-center';
+    }
+  }, [state.isDesktopSidebarOpen]);
+
+  const modalPanelClass = useMemo(() => {
+    if (!state.isDesktopSidebarOpen) {
+      // Sidebar is hidden - modal takes full viewport
+      return 'w-full max-w-full lg:max-w-5xl xl:max-w-6xl 2xl:max-w-[1400px]';
+    } else {
+      // Sidebar is visible - modal should occupy remaining space after sidebar
+      // Use calc to ensure it fills remaining viewport width
+      return 'w-[calc(100vw-16rem)] max-w-none';
+    }
+  }, [state.isDesktopSidebarOpen]);
+
+  // All hooks must be called before any conditional rendering
+  // Handle different rendering modes
   if (shareMode && currentTheme) {
     return (
       <PromptShareImage
@@ -958,14 +939,10 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-md p-2 sm:p-3 md:p-4 animate-fade-in transition-all" data-modal-overlay>
-      <div className={`w-full rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border-primary)] shadow-xl flex flex-col max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-3rem)] relative animate-slide-up-fade text-[var(--color-text-primary)] mt-2 md:mt-4 overflow-y-auto custom-scrollbar ${
-        !state.isDesktopSidebarOpen
-          ? 'max-w-[calc(100vw-1rem)] md:max-w-[calc(100vw-2rem)] lg:max-w-[calc(100vw-3rem)] xl:max-w-[calc(100vw-4rem)] 2xl:max-w-[calc(100vw-6rem)]'
-          : 'max-w-[calc(100vw-1rem)] md:max-w-[calc(100vw-18rem)] lg:max-w-[calc(100vw-20rem)] xl:max-w-[calc(100vw-22rem)] 2xl:max-w-[calc(100vw-24rem)]'
-      }`} data-modal-panel>
+    <div className={`${modalContainerClass} bg-[var(--color-bg-overlay)] backdrop-blur-md p-4 animate-fade-in transition-all`} data-modal-overlay>
+      <div className={`${modalPanelClass} rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-border-primary)] shadow-2xl flex flex-col max-h-[calc(100vh-4rem)] relative animate-slide-up-fade text-[var(--color-text-primary)] mt-4 overflow-y-auto custom-scrollbar transition-all duration-300`} data-modal-panel>
         {/* Header：简化为纯色条，减少视觉干扰 */}
-        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 px-4 sm:px-6 md:px-8 lg:px-6 py-4 sm:py-6 md:py-8 border-b border-[var(--color-border-primary)] shrink-0 bg-[var(--color-bg-secondary)] z-10 relative" data-modal-header>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-6 border-b border-[var(--color-border-primary)] shrink-0 bg-[var(--color-bg-secondary)] z-10 relative rounded-t-2xl" data-modal-header>
           <div className="flex items-center gap-3 sm:gap-4 max-w-full">
             <div className="flex items-center gap-1">
               <button
@@ -987,11 +964,11 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
             </div>
             {initialData ? (
               <div className="flex flex-col min-w-0">
-                <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight line-clamp-1 max-w-[320px] sm:max-w-[420px] lg:max-w-[560px]">{formData.title}</h2>
+                <h2 className="text-base sm:text-lg lg:text-xl font-bold text-[var(--color-text-primary)] tracking-tight line-clamp-1 max-w-[320px] sm:max-w-[420px] lg:max-w-[560px]">{formData.title}</h2>
                 <span className="text-[11px] sm:text-xs text-[var(--color-text-muted)] font-mono opacity-80">ID: {initialData.id.slice(0, 8)}...</span>
               </div>
             ) : (
-              <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight">New Prompt</h2>
+              <h2 className="text-base sm:text-lg lg:text-xl font-bold text-[var(--color-text-primary)] tracking-tight">New Prompt</h2>
             )}
           </div>
 
@@ -1000,15 +977,15 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
 
             {/* 状态指示器组 - 更突出更明显的未保存状态 */}
             {hasUnsavedChanges && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-red-500/20 border border-orange-400/40 rounded-lg text-sm text-orange-100 font-semibold shadow-xl backdrop-blur-sm animate-pulse ring-2 ring-orange-400/30">
-                <div className="w-3 h-3 bg-orange-400 rounded-full animate-ping shadow-orange-400/70 shadow-[0_0_12px] ring-2 ring-orange-400/50"></div>
-                <span className="text-orange-50 drop-shadow-sm">有未保存更改</span>
-                <div className="w-1.5 h-1.5 bg-orange-300 rounded-full animate-pulse"></div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-state-warning-light)] border border-[var(--color-state-warning)] rounded-lg text-sm text-[var(--color-text-primary)] font-semibold shadow-xl backdrop-blur-sm animate-pulse ring-2 ring-[var(--color-state-warning)]/30">
+                <div className="w-3 h-3 bg-[var(--color-state-warning)] rounded-full animate-ping shadow-[var(--color-state-warning)]/70 shadow-[0_0_12px] ring-2 ring-[var(--color-state-warning)]/50"></div>
+                <span className="text-[var(--color-text-primary)] drop-shadow-sm">有未保存更改</span>
+                <div className="w-1.5 h-1.5 bg-[var(--color-state-warning-dark)] rounded-full animate-pulse"></div>
               </div>
             )}
 
             {/* 辅助工具组 - 统一的玻璃态设计 */}
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur-md shadow-lg">
+            <div className="flex items-center bg-[var(--color-bg-surface)] border border-[var(--color-border-secondary)] rounded-xl p-1 backdrop-blur-md shadow-lg">
               <button
                 onClick={() => setShareMode(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-tertiary)] transition-all duration-200 transform hover:scale-105 active:scale-95"
@@ -1017,7 +994,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
                 <Icons.Image size={16} />
                 <span className="hidden sm:inline">分享</span>
               </button>
-              <div className="w-[1px] h-4 bg-white/20 mx-1"></div>
+              <div className="w-[1px] h-4 bg-[var(--color-border-primary)] mx-1"></div>
               <button
                 onClick={() => setShowSnippets(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-tertiary)] transition-all duration-200 transform hover:scale-105 active:scale-95"
@@ -1030,93 +1007,40 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
 
             {/* 主导航标签组 - 优化移动端体验 */}
             <div
-              className="flex items-center bg-[var(--color-bg-secondary)] border border-[var(--color-border-primary)] rounded-xl p-1 backdrop-blur-md shadow-lg overflow-x-auto custom-scrollbar scrollbar-thin"
+              className="flex items-center bg-[var(--color-bg-tertiary)] border border-[var(--color-border-primary)] rounded-xl p-1 backdrop-blur-md shadow-lg overflow-x-auto custom-scrollbar scrollbar-thin"
               role="tablist"
               aria-label="Prompt 编辑标签页"
             >
-              <button
-                onClick={() => setActiveTab('preview')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 whitespace-nowrap sm:px-3 sm:gap-2 ${
-                  activeTab === 'preview'
-                    ? 'bg-gradient-to-r from-blue-500/25 to-cyan-500/25 text-white shadow-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.2)] border border-blue-500/40 font-bold'
-                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] font-medium'
-                  }`}
-                role="tab"
-                aria-selected={activeTab === 'preview'}
-                aria-controls="preview-panel"
-                title="预览模式"
-              >
-                <Icons.Eye size={16} />
-                <span className="hidden sm:inline">预览</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('edit')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 whitespace-nowrap sm:px-3 sm:gap-2 ${
-                  activeTab === 'edit'
-                    ? 'bg-gradient-to-r from-emerald-500/25 to-green-500/25 text-white shadow-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.2)] border border-emerald-500/40 font-bold'
-                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] font-medium'
-                  }`}
-                role="tab"
-                aria-selected={activeTab === 'edit'}
-                aria-controls="edit-panel"
-                title="编辑模式"
-              >
-                <Icons.Edit size={16} />
-                <span className="hidden sm:inline">编辑</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('examples')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 whitespace-nowrap sm:px-3 sm:gap-2 ${
-                  activeTab === 'examples'
-                    ? 'bg-gradient-to-r from-purple-500/25 to-pink-500/25 text-white shadow-purple-500/30 shadow-[0_0_20px_rgba(147,51,234,0.2)] border border-purple-500/40 font-bold'
-                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] font-medium'
-                  }`}
-                role="tab"
-                aria-selected={activeTab === 'examples'}
-                aria-controls="examples-panel"
-                title="示例管理"
-              >
-                <Icons.List size={16} />
-                <span className="hidden sm:inline">示例</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('test')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 whitespace-nowrap sm:px-3 sm:gap-2 ${
-                  activeTab === 'test'
-                    ? 'bg-gradient-to-r from-brand-500/30 to-brand-600/30 text-white shadow-brand-500/40 shadow-[0_0_25px_rgba(var(--c-brand),0.4)] border border-brand-500/50 font-bold'
-                    : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] font-medium'
-                  }`}
-                role="tab"
-                aria-selected={activeTab === 'test'}
-                aria-controls="test-panel"
-                title="测试运行"
-              >
-                <Icons.Run size={16} />
-                <span className="hidden sm:inline">运行</span>
-              </button>
-              {initialData && (
+              {[
+                { key: 'preview', icon: Icons.Eye, label: '预览', title: '预览模式', gradient: 'from-[var(--color-state-info)]/25 to-[var(--color-state-info-dark)]/25', shadow: 'shadow-[var(--color-state-info)]/30 shadow-[0_0_20px_var(--color-state-info)]', border: 'border-[var(--color-state-info)]/40' },
+                { key: 'edit', icon: Icons.Edit, label: '编辑', title: '编辑模式', gradient: 'from-[var(--color-state-success)]/25 to-[var(--color-state-success-dark)]/25', shadow: 'shadow-[var(--color-state-success)]/30 shadow-[0_0_20px_var(--color-state-success)]', border: 'border-[var(--color-state-success)]/40' },
+                { key: 'examples', icon: Icons.List, label: '示例', title: '示例管理', gradient: 'from-[var(--color-region-meta)]/25 to-[var(--color-region-examples)]/25', shadow: 'shadow-[var(--color-region-meta)]/30 shadow-[0_0_20px_var(--color-region-meta)]', border: 'border-[var(--color-region-meta)]/40' },
+                { key: 'test', icon: Icons.Run, label: '运行', title: '测试运行', gradient: 'from-[var(--color-brand-primary)]/30 to-[var(--color-brand-secondary)]/30', shadow: 'shadow-[var(--color-brand-primary)]/40 shadow-[0_0_25px_var(--color-brand-primary)]', border: 'border-[var(--color-brand-primary)]/50' },
+                ...(initialData ? [{ key: 'history', icon: Icons.History, label: '历史', title: '版本历史', gradient: 'from-[var(--color-brand-primary)]/25 to-[var(--color-brand-secondary)]/25', shadow: 'shadow-[var(--color-brand-primary)]/30 shadow-[0_0_20px_var(--color-brand-primary)]', border: 'border-[var(--color-brand-primary)]/40' }] : [])
+              ].map(({ key, icon: Icon, label, title, gradient, shadow, border }) => (
                 <button
-                  onClick={() => setActiveTab('history')}
-                  className={`flex items-center gap-1.5 px-2.5 py-2 text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 whitespace-nowrap sm:px-3 sm:gap-2 ${
-                    activeTab === 'history'
-                      ? 'bg-gradient-to-r from-[var(--color-brand-primary)]/25 to-[var(--color-brand-secondary)]/25 text-[var(--color-text-primary)] shadow-[var(--color-brand-primary)]/30 shadow-[0_0_20px_var(--color-brand-primary)] border border-[var(--color-brand-primary)]/40 font-bold'
+                  key={key}
+                  onClick={() => setActiveTab(key as TabKey)}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-95 whitespace-nowrap ${
+                    activeTab === key
+                      ? `bg-gradient-to-r ${gradient} text-[var(--color-text-inverse)] ${shadow} border ${border} font-bold`
                       : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] font-medium'
-                  }`}
+                    }`}
                   role="tab"
-                  aria-selected={activeTab === 'history'}
-                  aria-controls="history-panel"
-                  title="版本历史"
+                  aria-selected={activeTab === key}
+                  aria-controls={`${key}-panel`}
+                  title={title}
                 >
-                  <Icons.History size={16} />
-                  <span className="hidden sm:inline">历史</span>
+                  <Icon size={16} />
+                  <span className="hidden sm:inline">{label}</span>
                 </button>
-              )}
+              ))}
             </div>
 
             {/* 关闭按钮 - 更现代的设计 */}
             <button
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-200 hover:text-white rounded-xl hover:bg-red-500/10 transition-all duration-200 transform hover:scale-105 active:scale-95 border border-transparent hover:border-red-500/20 backdrop-blur-sm"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-xl hover:bg-[var(--color-state-error-light)] transition-all duration-200 transform hover:scale-105 active:scale-95 border border-transparent hover:border-[var(--color-state-error)]/20 backdrop-blur-sm"
               title="关闭对话框"
             >
               <Icons.Close size={18} />
@@ -1129,7 +1053,7 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
         <div className="flex-1 min-h-0" data-modal-body>
           <div className="h-full">
             {/* 主内容区域（占据100%宽度） */}
-            <div className="w-full min-h-0 overflow-y-auto px-1 sm:px-2 md:px-3 lg:px-4 xl:px-6 py-1 sm:py-2 md:py-3 lg:py-4 xl:py-6 custom-scrollbar bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)]">
+            <div className="w-full min-h-0 overflow-y-auto px-6 py-6 custom-scrollbar bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]">
               {activeTab === 'preview' && (
                 <PromptPreviewTab
                   formData={formData}
@@ -1264,6 +1188,8 @@ const PromptModalComponent: React.FC<PromptModalProps> = ({
       </div>
     </div>
   );
-};
+});
 
-export const PromptModal = React.memo(PromptModalComponent);
+PromptModalComponent.displayName = 'PromptModalComponent';
+
+export const PromptModal = PromptModalComponent;

@@ -437,7 +437,7 @@ export const PromptEditTab: React.FC<PromptEditTabProps> = ({
           {/* Left: PromptMetaPanel (moved left) */}
           <div className="xl:col-span-1 space-y-5">
             {/* Core Information (基础信息) - 重新设计的布局 */}
-            <div className={`${SECTION_STYLES.container.base} ${SECTION_STYLES.container.accent.basic} p-5 space-y-5`}>
+            <div className={`${SECTION_STYLES.container.base} ${SECTION_STYLES.container.accent.basic} p-6 space-y-6 shadow-lg shadow-black/20 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300`}>
               <div className="flex items-center justify-between min-h-[56px]">
                 <h3 className={`${SECTION_STYLES.content.sectionTitle} ${SECTION_STYLES.content.sectionTitleColor} flex items-center gap-3 mb-0`}>
                   <div className={`w-2.5 h-2.5 rounded-full ${SECTION_STYLES.icons.indicator.variants.purple} shadow-sm`}></div>

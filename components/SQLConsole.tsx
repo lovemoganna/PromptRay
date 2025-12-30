@@ -1065,7 +1065,7 @@ export const SQLConsole: React.FC<SQLConsoleProps> = ({
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <button
                       onClick={clearResult}
-                      className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 ${colors.bg.muted} hover:${colors.bg.surface} ${colors.text.secondary} hover:${colors.text.primary} text-sm ${FOUNDATION.borderRadius.lg} ${colors.border.light} hover:${colors.border.primary} transition-all duration-200 min-h-[44px] touch-manipulation`}
+                      className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 ${colors.bg.muted} hover:${colors.bg.surfaceDark} ${colors.text.secondary} hover:${colors.text.primary} text-sm ${FOUNDATION.borderRadius.lg} ${colors.border.light} hover:${colors.border.primary} transition-all duration-200 min-h-[44px] touch-manipulation`}
                     >
                       <Icons.Trash size={14} />
                       <span className="hidden xs:inline">清空结果</span>

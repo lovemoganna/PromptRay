@@ -8,6 +8,10 @@ import { Dashboard } from './components/Dashboard';
 import { ListView } from './components/ListView';
 import { KnowledgeTable } from './components/KnowledgeTable';
 import { CommandPalette } from './components/CommandPalette';
+import GlobalSearch from './components/GlobalSearch';
+import AdvancedFilters, { FilterCondition } from './components/AdvancedFilters';
+import DataVisualization from './components/DataVisualization';
+import BulkActions from './components/BulkActions';
 import { PromptCard } from './components/PromptCard';
 import { StorageMigrationModal } from './components/settings/StorageMigrationModal';
 import { ModelSelector } from './components/ModelSelector';
@@ -126,6 +130,9 @@ const App: React.FC = () => {
     topTags,
     categoryCounts
   } = usePromptData();
+
+  // Create allCategories from standard and custom categories
+  const allCategories = [...STANDARD_CATEGORIES, ...customCategories];
 
   const {
     selectedCategory,
@@ -269,6 +276,19 @@ const App: React.FC = () => {
   // Command Palette State
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
+  // Global Search State
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Advanced Filters State
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<FilterCondition[]>([]);
+
+  // Data Visualization State
+  const [isDataVisualizationOpen, setIsDataVisualizationOpen] = useState(false);
+
+  // Bulk Selection State
+  const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
+
   // Import Loading State
   const [isImporting, setIsImporting] = useState(false);
 
@@ -400,6 +420,163 @@ const App: React.FC = () => {
           handleDuplicatePrompt(rest);
       }
   }, [prompts, handleDuplicatePrompt]);
+
+  // Bulk Operations
+  const handleBulkToggleFavorite = useCallback((ids: string[], favorite: boolean) => {
+    setPrompts(prev => prev.map(p =>
+      ids.includes(p.id) ? { ...p, isFavorite: favorite, updatedAt: Date.now() } : p
+    ));
+    ids.forEach(id => {
+      const updatedPrompt = prompts.find(p => p.id === id);
+      if (updatedPrompt) {
+        dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: { ...updatedPrompt, isFavorite: favorite, updatedAt: Date.now() } });
+      }
+    });
+    showToast(`${favorite ? 'Added to' : 'Removed from'} favorites`);
+  }, [prompts, dataSyncManager, showToast]);
+
+  const handleBulkDelete = useCallback((ids: string[]) => {
+    const updatedPrompts = prompts.map(p =>
+      ids.includes(p.id) ? { ...p, deletedAt: Date.now() } : p
+    );
+    setPrompts(updatedPrompts);
+    ids.forEach(id => {
+      const updatedPrompt = updatedPrompts.find(p => p.id === id);
+      if (updatedPrompt) {
+        dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: updatedPrompt });
+      }
+    });
+    showToast(`${ids.length} prompts moved to trash`);
+  }, [prompts, dataSyncManager, showToast]);
+
+  const handleBulkDuplicate = useCallback((ids: string[]) => {
+    const duplicates: Prompt[] = [];
+    ids.forEach(id => {
+      const original = prompts.find(p => p.id === id);
+      if (original) {
+        const duplicate: Prompt = {
+          ...original,
+          id: `prompt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          title: `${original.title} (副本)`,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          deletedAt: undefined,
+          history: [],
+          savedRuns: [],
+          lastVariableValues: {}
+        };
+        duplicates.push(duplicate);
+      }
+    });
+
+    setPrompts(prev => [...prev, ...duplicates]);
+    duplicates.forEach(duplicate => {
+      dataSyncManager.emit({ type: 'PROMPT_CREATED', payload: duplicate });
+    });
+    showToast(`Created ${duplicates.length} duplicates`);
+  }, [prompts, dataSyncManager, showToast]);
+
+  const handleBulkAddTags = useCallback((ids: string[], tags: string[]) => {
+    setPrompts(prev => prev.map(p =>
+      ids.includes(p.id)
+        ? { ...p, tags: [...new Set([...p.tags, ...tags])], updatedAt: Date.now() }
+        : p
+    ));
+    ids.forEach(id => {
+      const updatedPrompt = prompts.find(p => p.id === id);
+      if (updatedPrompt) {
+        const newTags = [...new Set([...updatedPrompt.tags, ...tags])];
+        dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: { ...updatedPrompt, tags: newTags, updatedAt: Date.now() } });
+      }
+    });
+    showToast(`Added tags to ${ids.length} prompts`);
+  }, [prompts, dataSyncManager, showToast]);
+
+  const handleBulkRemoveTags = useCallback((ids: string[], tags: string[]) => {
+    setPrompts(prev => prev.map(p =>
+      ids.includes(p.id)
+        ? { ...p, tags: p.tags.filter(tag => !tags.includes(tag)), updatedAt: Date.now() }
+        : p
+    ));
+    ids.forEach(id => {
+      const updatedPrompt = prompts.find(p => p.id === id);
+      if (updatedPrompt) {
+        const newTags = updatedPrompt.tags.filter(tag => !tags.includes(tag));
+        dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: { ...updatedPrompt, tags: newTags, updatedAt: Date.now() } });
+      }
+    });
+    showToast(`Removed tags from ${ids.length} prompts`);
+  }, [prompts, dataSyncManager, showToast]);
+
+  const handleBulkMoveToCategory = useCallback((ids: string[], category: string) => {
+    setPrompts(prev => prev.map(p =>
+      ids.includes(p.id) ? { ...p, category, updatedAt: Date.now() } : p
+    ));
+    ids.forEach(id => {
+      const updatedPrompt = prompts.find(p => p.id === id);
+      if (updatedPrompt) {
+        dataSyncManager.emit({ type: 'PROMPT_UPDATED', payload: { ...updatedPrompt, category, updatedAt: Date.now() } });
+      }
+    });
+    showToast(`Moved ${ids.length} prompts to ${category}`);
+  }, [prompts, dataSyncManager, showToast]);
+
+  const handleBulkExport = useCallback((selectedPrompts: Prompt[], format: 'json' | 'csv' | 'markdown') => {
+    let content = '';
+    let filename = '';
+    let mimeType = '';
+
+    switch (format) {
+      case 'json':
+        content = JSON.stringify(selectedPrompts, null, 2);
+        filename = `prompts-export-${new Date().toISOString().split('T')[0]}.json`;
+        mimeType = 'application/json';
+        break;
+      case 'csv':
+        const headers = ['Title', 'Description', 'Category', 'Tags', 'Created', 'Updated'];
+        const csvData = selectedPrompts.map(p => [
+          p.title,
+          p.description,
+          p.category,
+          p.tags.join(';'),
+          new Date(p.createdAt).toLocaleDateString(),
+          p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : ''
+        ]);
+        content = [headers, ...csvData].map(row =>
+          row.map(field => `"${field}"`).join(',')
+        ).join('\n');
+        filename = `prompts-export-${new Date().toISOString().split('T')[0]}.csv`;
+        mimeType = 'text/csv';
+        break;
+      case 'markdown':
+        content = selectedPrompts.map(p => {
+          return `# ${p.title}\n\n` +
+                 `**分类**: ${p.category}\n` +
+                 `**标签**: ${p.tags.join(', ')}\n` +
+                 `**创建时间**: ${new Date(p.createdAt).toLocaleDateString()}\n\n` +
+                 `## 描述\n${p.description}\n\n` +
+                 `## 内容\n${p.content}\n\n` +
+                 (p.systemInstruction ? `## 系统指令\n${p.systemInstruction}\n\n` : '') +
+                 (p.examples && p.examples.length > 0 ? `## 示例\n${p.examples.map(ex => `- 输入: ${ex.input}\n  输出: ${ex.output}`).join('\n\n')}\n\n` : '') +
+                 '---\n\n';
+        }).join('');
+        filename = `prompts-export-${new Date().toISOString().split('T')[0]}.md`;
+        mimeType = 'text/markdown';
+        break;
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast(`Exported ${selectedPrompts.length} prompts as ${format.toUpperCase()}`);
+  }, [showToast]);
 
   const handleDeletePrompt = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -636,13 +813,34 @@ const App: React.FC = () => {
   useGlobalShortcuts({
     isModalOpen,
     isPaletteOpen,
+    isSearchOpen,
     currentThemeId,
     themes: THEMES,
     setCurrentThemeId,
     setIsPaletteOpen,
+    setIsSearchOpen,
     openNewModal,
     showToast
   });
+
+  // Global search event listeners
+  useEffect(() => {
+    const handleCreatePrompt = () => {
+      openNewModal();
+    };
+
+    const handleNavigateDashboard = () => {
+      handleViewChange('dashboard');
+    };
+
+    document.addEventListener('create-prompt', handleCreatePrompt);
+    document.addEventListener('navigate-dashboard', handleNavigateDashboard);
+
+    return () => {
+      document.removeEventListener('create-prompt', handleCreatePrompt);
+      document.removeEventListener('navigate-dashboard', handleNavigateDashboard);
+    };
+  }, []);
 
   const navigatePrompt = useCallback((direction: 'next' | 'prev') => {
       if (direction === 'next' && nextPrompt) {
@@ -832,6 +1030,22 @@ const App: React.FC = () => {
                     </button>
                     <div className="w-[1px] bg-white/10 my-1 mx-0.5"></div>
                     <button onClick={handleExport} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-theme transition-all" title="Export JSON"><Icons.Download size={16} /></button>
+                    <div className="w-[1px] bg-white/10 my-1 mx-0.5"></div>
+                    <button
+                        onClick={() => setIsAdvancedFiltersOpen(true)}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-theme transition-all"
+                        title="Advanced Filters"
+                    >
+                        <Icons.Filter size={16} />
+                    </button>
+                    <div className="w-[1px] bg-white/10 my-1 mx-0.5"></div>
+                    <button
+                        onClick={() => setIsDataVisualizationOpen(true)}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-theme transition-all"
+                        title="Data Visualization"
+                    >
+                        <Icons.Analysis size={16} />
+                    </button>
                 </div>
                 <button 
                     onClick={openNewModal} 
@@ -922,7 +1136,7 @@ const App: React.FC = () => {
                     clearable
                   />
                 </div>
-                <ListView 
+                <ListView
                     prompts={pagedListPrompts}
                     onOpenPrompt={openEditModal}
                     onToggleFavorite={toggleFavorite}
@@ -930,6 +1144,8 @@ const App: React.FC = () => {
                     onDuplicate={handleDuplicateFromCard}
                     onRestore={selectedCategory === SPECIAL_CATEGORY_TRASH ? handleRestorePrompt : undefined}
                     isTrashView={selectedCategory === SPECIAL_CATEGORY_TRASH}
+                    selectedPrompts={selectedPromptIds}
+                    onSelectionChange={setSelectedPromptIds}
                 />
                 {pagedListPrompts.length < filteredPrompts.length && (
                   <div className="flex justify-center pt-4 pb-6">
@@ -978,6 +1194,7 @@ const App: React.FC = () => {
                 <KnowledgeTable
                     prompts={filteredPrompts}
                     onOpenPrompt={openEditModal}
+                    onNotify={showToast}
                 />
             </div>
         ) : (
@@ -1085,7 +1302,7 @@ const App: React.FC = () => {
             currentTheme={currentThemeObj}
         />
         
-        <CommandPalette 
+        <CommandPalette
             isOpen={isPaletteOpen}
             onClose={() => setIsPaletteOpen(false)}
             themes={THEMES}
@@ -1106,6 +1323,59 @@ const App: React.FC = () => {
                 if (action === 'export') handleExport();
                 if (action === 'storage-migration') setIsStorageMigrationOpen(true);
             }}
+        />
+
+        <GlobalSearch
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            prompts={prompts}
+            onSelectPrompt={(prompt) => {
+                setEditingPrompt(prompt);
+                setIsModalOpen(true);
+            }}
+            onNavigateToCategory={(category) => {
+                setSelectedCategory(category);
+                setSelectedTag(undefined);
+                setSearchQuery('');
+                setCurrentView('grid');
+            }}
+            onNavigateToTag={(tag) => {
+                setSelectedTag(tag);
+                setSelectedCategory('All');
+                setSearchQuery('');
+                setCurrentView('grid');
+            }}
+            allCategories={allCategories}
+        />
+
+        <AdvancedFilters
+            isOpen={isAdvancedFiltersOpen}
+            onClose={() => setIsAdvancedFiltersOpen(false)}
+            prompts={prompts}
+            currentFilters={advancedFilters}
+            onFiltersChange={setAdvancedFilters}
+            onApplyFilters={(filtered) => {
+                // TODO: Handle filtered results - could update main view or show filtered state
+                console.log('Applied filters, filtered count:', filtered.length);
+            }}
+        />
+
+        <DataVisualization
+            isOpen={isDataVisualizationOpen}
+            onClose={() => setIsDataVisualizationOpen(false)}
+            prompts={prompts}
+        />
+
+        <BulkActions
+            selectedPrompts={prompts.filter(p => selectedPromptIds.includes(p.id))}
+            onClearSelection={() => setSelectedPromptIds([])}
+            onToggleFavorite={handleBulkToggleFavorite}
+            onDelete={handleBulkDelete}
+            onDuplicate={handleBulkDuplicate}
+            onExport={handleBulkExport}
+            onAddTags={handleBulkAddTags}
+            onRemoveTags={handleBulkRemoveTags}
+            onMoveToCategory={handleBulkMoveToCategory}
         />
 
         <Toast 

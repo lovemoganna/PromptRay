@@ -152,9 +152,9 @@ const SidebarComponent: React.FC<SidebarProps> = ({
                 </button>
                 {onDatabaseManagementOpen && (
                     <button
-                        onClick={() => { onDatabaseManagementOpen(); onCloseMobile(); }}
-                        className="flex-1 flex items-center justify-center py-2 px-1 rounded-md transition-all duration-300 transform hover:scale-105 text-gray-500 hover:text-gray-300 hover:bg-white/5"
-                        title="Database Management"
+                        disabled
+                        className="flex-1 flex items-center justify-center py-2 px-1 rounded-md transition-all duration-300 text-gray-600 cursor-not-allowed opacity-50"
+                        title="Database Management (Coming Soon)"
                     >
                     <Icons.Database size={16} />
                 </button>

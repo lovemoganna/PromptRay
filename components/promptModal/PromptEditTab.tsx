@@ -599,17 +599,10 @@ export const PromptEditTab: React.FC<PromptEditTabProps> = ({
                       tags={formData.tags || []}
                       tagInput={tagInput || ''}
                       suggestions={tagSuggestions || []}
-                      onAddTag={(tag) => {
-                        if (!tag) return;
-                        onFormDataChange({ ...formData, tags: Array.from(new Set([...(formData.tags || []), tag])) });
-                      }}
                       onRemoveTag={(tag) => onFormDataChange({ ...formData, tags: (formData.tags || []).filter(t => t !== tag) })}
                       onInputChange={(v) => onTagInputChange && onTagInputChange(v)}
                       onInputKeyDown={(e) => onTagKeyDown && onTagKeyDown(e)}
                       onSuggestionClick={(tag) => onAddTagFromSuggestion && onAddTagFromSuggestion(tag)}
-                      compact={false}
-                      onAutoTag={onAutoTag}
-                      isTagging={isTagging}
                     />
                   </div>
                 </div>

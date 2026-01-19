@@ -10,21 +10,47 @@ interface ListViewProps {
   onDuplicate: (id: string, e: React.MouseEvent) => void;
   onRestore?: (id: string, e: React.MouseEvent) => void;
   isTrashView?: boolean;
+  // Bulk operations
+  selectedPrompts?: string[];
+  onSelectionChange?: (selectedIds: string[]) => void;
 }
 
-const ListViewComponent: React.FC<ListViewProps> = ({ 
-    prompts, 
-    onOpenPrompt, 
-    onToggleFavorite, 
-    onDelete, 
+const ListViewComponent: React.FC<ListViewProps> = ({
+    prompts,
+    onOpenPrompt,
+    onToggleFavorite,
+    onDelete,
     onDuplicate,
     onRestore,
-    isTrashView = false
+    isTrashView = false,
+    selectedPrompts = [],
+    onSelectionChange
 }) => {
     const [selectedIndex, setSelectedIndex] = useState<number>(-1);
     const tableRef = useRef<HTMLTableElement>(null);
 
-    // Keyboard Navigation
+    // Handle selection changes
+    const handleSelectPrompt = (promptId: string, selected: boolean) => {
+        if (!onSelectionChange) return;
+
+        if (selected) {
+            onSelectionChange([...selectedPrompts, promptId]);
+        } else {
+            onSelectionChange(selectedPrompts.filter(id => id !== promptId));
+        }
+    };
+
+    const handleSelectAll = () => {
+        if (!onSelectionChange) return;
+
+        if (selectedPrompts.length === prompts.length) {
+            onSelectionChange([]);
+        } else {
+            onSelectionChange(prompts.map(p => p.id));
+        }
+    };
+
+    // Keyboard Navigation and Selection
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (prompts.length === 0) return;
@@ -33,23 +59,49 @@ const ListViewComponent: React.FC<ListViewProps> = ({
             const activeTag = document.activeElement?.tagName.toLowerCase();
             if (activeTag === 'input' || activeTag === 'textarea') return;
 
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSelectedIndex(prev => (prev + 1) % prompts.length);
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSelectedIndex(prev => (prev - 1 + prompts.length) % prompts.length);
-            } else if (e.key === 'Enter') {
-                if (selectedIndex >= 0 && selectedIndex < prompts.length) {
+            // Selection shortcuts
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'a') {
                     e.preventDefault();
-                    onOpenPrompt(prompts[selectedIndex]);
+                    handleSelectAll();
+                    return;
+                }
+            }
+
+            // Delete selected items
+            if (e.key === 'Delete' && selectedPrompts.length > 0 && !isTrashView) {
+                e.preventDefault();
+                // This will be handled by bulk actions
+                return;
+            }
+
+            // Escape to clear selection
+            if (e.key === 'Escape' && selectedPrompts.length > 0) {
+                e.preventDefault();
+                onSelectionChange?.([]);
+                return;
+            }
+
+            // Navigation (only when no selection or single item selected)
+            if (selectedPrompts.length <= 1) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedIndex(prev => (prev + 1) % prompts.length);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedIndex(prev => (prev - 1 + prompts.length) % prompts.length);
+                } else if (e.key === 'Enter') {
+                    if (selectedIndex >= 0 && selectedIndex < prompts.length) {
+                        e.preventDefault();
+                        onOpenPrompt(prompts[selectedIndex]);
+                    }
                 }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [prompts, selectedIndex, onOpenPrompt]);
+    }, [prompts, selectedIndex, onOpenPrompt, selectedPrompts, onSelectionChange, isTrashView]);
 
     // Reset selection when list changes
     useEffect(() => {
@@ -73,6 +125,16 @@ const ListViewComponent: React.FC<ListViewProps> = ({
                 <table className="w-full text-left border-collapse" ref={tableRef}>
                     <thead>
                         <tr className="border-b border-white/5 bg-white/5 text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                            {onSelectionChange && (
+                                <th className="px-6 py-4 w-12 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedPrompts.length === prompts.length && prompts.length > 0}
+                                        onChange={handleSelectAll}
+                                        className="rounded border-white/20 bg-white/10 text-blue-500 focus:ring-blue-500 focus:ring-2"
+                                    />
+                                </th>
+                            )}
                             {!isTrashView && <th className="px-6 py-4 w-12 text-center hidden md:table-cell">Fav</th>}
                             <th className="px-6 py-4">Name / ID</th>
                             <th className="px-6 py-4 hidden md:table-cell">Category</th>
@@ -88,16 +150,26 @@ const ListViewComponent: React.FC<ListViewProps> = ({
                             const categoryColor = getColorForCategory(prompt.category);
 
                             return (
-                                <tr 
-                                    key={prompt.id} 
+                                <tr
+                                    key={prompt.id}
                                     onClick={() => onOpenPrompt(prompt)}
                                     className={`group transition-colors cursor-pointer ${
-                                        isSelected 
-                                            ? 'bg-brand-500/10 border-l-2 border-brand-500' 
+                                        isSelected
+                                            ? 'bg-brand-500/10 border-l-2 border-brand-500'
                                             : 'hover:bg-white/5 border-l-2 border-transparent'
                                     }`}
                                     style={{ animationDelay: `${index * 30}ms` }}
                                 >
+                                    {onSelectionChange && (
+                                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedPrompts.includes(prompt.id)}
+                                                onChange={(e) => handleSelectPrompt(prompt.id, e.target.checked)}
+                                                className="rounded border-white/20 bg-white/10 text-blue-500 focus:ring-blue-500 focus:ring-2"
+                                            />
+                                        </td>
+                                    )}
                                     {!isTrashView && (
                                         <td className="px-6 py-4 text-center hidden md:table-cell">
                                             <button 

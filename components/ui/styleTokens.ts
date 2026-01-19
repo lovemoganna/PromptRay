@@ -10,6 +10,17 @@ export type TextVariant = 'h1' | 'h2' | 'h3' | 'h4' | 'body' | 'caption' | 'labe
 export type InputVariant = 'default' | 'error' | 'success';
 
 // =============================================================================
+// AFFORDANCE STYLES - 本体感设计系统 (提前定义以供其他组件使用)
+// =============================================================================
+
+// 简化的AFFORDANCE_STYLES基础定义
+export const AFFORDANCE_STYLES_BASE = {
+  clickable: {
+    active: 'active:scale-[0.98] active:bg-white/10',
+  },
+} as const;
+
+// =============================================================================
 // FOUNDATION - 基础设计常量
 // =============================================================================
 
@@ -209,6 +220,262 @@ export const interactions = {
   disabled: 'disabled:opacity-50',
 };
 
+// =============================================================================
+// AFFORDANCE STYLES - 本体感设计系统
+// =============================================================================
+
+// 语义化颜色系统
+export const SEMANTIC_COLORS = {
+  // 基础颜色
+  primary: {
+    50: '#eff6ff',
+    100: '#dbeafe',
+    200: '#bfdbfe',
+    300: '#93c5fd',
+    400: '#60a5fa',
+    500: '#3b82f6',
+    600: '#2563eb',
+    700: '#1d4ed8',
+    800: '#1e40af',
+    900: '#1e3a8a',
+  },
+  neutral: {
+    50: '#f8fafc',
+    100: '#f1f5f9',
+    200: '#e2e8f0',
+    300: '#cbd5e1',
+    400: '#94a3b8',
+    500: '#64748b',
+    600: '#475569',
+    700: '#334155',
+    800: '#1e293b',
+    900: '#0f172a',
+  },
+  success: {
+    50: '#f0fdf4',
+    100: '#dcfce7',
+    200: '#bbf7d0',
+    300: '#86efac',
+    400: '#4ade80',
+    500: '#22c55e',
+    600: '#16a34a',
+    700: '#15803d',
+    800: '#166534',
+    900: '#14532d',
+  },
+  warning: {
+    50: '#fffbeb',
+    100: '#fef3c7',
+    200: '#fde68a',
+    300: '#fcd34d',
+    400: '#fbbf24',
+    500: '#f59e0b',
+    600: '#d97706',
+    700: '#b45309',
+    800: '#92400e',
+    900: '#78350f',
+  },
+  error: {
+    50: '#fef2f2',
+    100: '#fee2e2',
+    200: '#fecaca',
+    300: '#fca5a5',
+    400: '#f87171',
+    500: '#ef4444',
+    600: '#dc2626',
+    700: '#b91c1c',
+    800: '#991b1b',
+    900: '#7f1d1d',
+  },
+} as const;
+
+// 深度和层次系统
+export const DEPTH_LEVELS = {
+  ground: 'shadow-none',
+  floating: 'shadow-sm',
+  elevated: 'shadow-md',
+  modal: 'shadow-lg',
+  tooltip: 'shadow-xl',
+  overlay: 'shadow-2xl',
+} as const;
+
+// 动画和过渡系统
+export const ANIMATIONS = {
+  // 微交互
+  micro: {
+    scale: 'hover:scale-105 active:scale-95 transition-transform duration-100',
+    bounce: 'hover:scale-110 active:scale-90 transition-transform duration-150',
+    glow: 'hover:shadow-lg hover:shadow-current/25 transition-shadow duration-200',
+  },
+
+  // 状态变化
+  state: {
+    fade: 'transition-opacity duration-200',
+    slide: 'transition-transform duration-300 ease-out',
+    color: 'transition-colors duration-200',
+    all: 'transition-all duration-200 ease-out',
+  },
+
+  // 进入/离开
+  entrance: {
+    fadeIn: 'animate-in fade-in duration-300',
+    slideUp: 'animate-in slide-in-from-bottom-4 duration-300',
+    scaleIn: 'animate-in zoom-in-95 duration-200',
+    bounceIn: 'animate-in bounce-in duration-500',
+  },
+
+  // 加载状态
+  loading: {
+    pulse: 'animate-pulse',
+    spin: 'animate-spin',
+    ping: 'animate-ping',
+  },
+} as const;
+
+// 本体感设计系统 - 界面元素反映功能属性
+export const AFFORDANCE_STYLES = {
+  // 功能类型指示器
+  functional: {
+    // 主要操作（创建、保存、提交）
+    primary: 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40',
+    // 次要操作（编辑、配置）
+    secondary: 'bg-gray-700/80 text-gray-200 border border-gray-600/50 hover:bg-gray-600/80 hover:border-gray-500/50',
+    // 危险操作（删除、取消）
+    danger: 'bg-gradient-to-r from-red-600 to-red-500 text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40',
+    // 成功操作（确认、完成）
+    success: 'bg-gradient-to-r from-green-600 to-green-500 text-white shadow-lg shadow-green-500/25 hover:shadow-green-500/40',
+  },
+
+  // 交互状态
+  interaction: {
+    // 可点击元素 - 按钮、链接、卡片
+    clickable: {
+      base: 'cursor-pointer select-none',
+      hover: 'hover:bg-white/5 hover:scale-[1.02] transition-all duration-200',
+      active: 'active:scale-[0.98] active:bg-white/10',
+      disabled: 'cursor-not-allowed opacity-50 pointer-events-none',
+    },
+
+    // 可拖拽元素 - 排序、移动
+    draggable: {
+      base: 'cursor-grab active:cursor-grabbing',
+      hover: 'hover:shadow-md hover:-translate-y-1 transition-all duration-200',
+      dragging: 'shadow-xl rotate-3 scale-105 opacity-80',
+      dragOver: 'ring-2 ring-blue-400/50 bg-blue-400/10',
+    },
+
+    // 可编辑元素 - 输入框、文本区域
+    editable: {
+      base: 'cursor-text',
+      hover: 'hover:bg-white/5 hover:ring-1 hover:ring-white/20 transition-all duration-200',
+      focus: 'ring-2 ring-blue-500/50 bg-white/10',
+      readonly: 'bg-gray-500/20 cursor-default',
+    },
+
+    // 可选择元素 - 复选框、单选、多选
+    selectable: {
+      base: 'cursor-pointer',
+      selected: 'ring-2 ring-blue-500/50 bg-blue-500/10',
+      hover: 'hover:bg-white/5 transition-colors duration-200',
+      multiSelect: 'hover:ring-1 hover:ring-blue-400/30',
+    },
+
+    // 可展开/折叠元素 - 手风琴、下拉菜单
+    expandable: {
+      base: 'cursor-pointer',
+      expanded: 'rotate-180 transition-transform duration-200',
+      collapsed: 'rotate-0 transition-transform duration-200',
+    },
+  },
+
+  // 数据状态指示器
+  data: {
+    // 加载状态
+    loading: {
+      spinner: 'animate-spin text-blue-400',
+      pulse: 'animate-pulse bg-gray-500/30',
+      skeleton: 'animate-pulse bg-gradient-to-r from-gray-500/20 via-gray-500/30 to-gray-500/20',
+    },
+
+    // 内容状态
+    empty: 'text-gray-400 border-dashed border-gray-500/30 bg-gray-500/10',
+    error: 'text-red-400 border-red-500/30 bg-red-500/10',
+    success: 'text-green-400 border-green-500/30 bg-green-500/10',
+    warning: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10',
+
+    // 优先级指示器
+    priority: {
+      high: 'border-l-4 border-red-500 bg-red-500/5',
+      medium: 'border-l-4 border-yellow-500 bg-yellow-500/5',
+      low: 'border-l-4 border-green-500 bg-green-500/5',
+    },
+  },
+
+  // 导航和导向
+  navigation: {
+    // 面包屑导航
+    breadcrumb: 'text-gray-400 hover:text-white transition-colors duration-200',
+
+    // 标签页
+    tab: {
+      active: 'border-b-2 border-blue-500 text-blue-400 bg-blue-500/10',
+      inactive: 'text-gray-400 hover:text-gray-300 border-b-2 border-transparent',
+    },
+
+    // 步骤指示器
+    step: {
+      completed: 'bg-green-500 text-white',
+      current: 'bg-blue-500 text-white',
+      pending: 'bg-gray-500 text-gray-300',
+    },
+  },
+
+  // 反馈和状态
+  feedback: {
+    // 工具提示
+    tooltip: 'bg-gray-900/95 text-white text-sm px-2 py-1 rounded shadow-lg border border-white/10',
+
+    // 通知横幅
+    banner: {
+      info: 'bg-blue-500/20 border-blue-500/30 text-blue-400',
+      success: 'bg-green-500/20 border-green-500/30 text-green-400',
+      warning: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400',
+      error: 'bg-red-500/20 border-red-500/30 text-red-400',
+    },
+
+    // 表单验证状态
+    validation: {
+      valid: 'border-green-500/50 focus:ring-green-500/20',
+      invalid: 'border-red-500/50 focus:ring-red-500/20',
+      warning: 'border-yellow-500/50 focus:ring-yellow-500/20',
+    },
+  },
+
+  // 布局和空间
+  layout: {
+    // 容器边界
+    container: 'border border-white/10 rounded-lg bg-white/5 backdrop-blur-sm',
+
+    // 内容区域
+    content: {
+      padded: 'p-4 md:p-6',
+      compact: 'p-2 md:p-3',
+      spacious: 'p-6 md:p-8',
+    },
+
+    // 分隔线
+    divider: 'border-t border-white/10 my-4',
+
+    // 间距系统
+    spacing: {
+      tight: 'space-y-2',
+      normal: 'space-y-4',
+      relaxed: 'space-y-6',
+      loose: 'space-y-8',
+    },
+  },
+} as const;
+
 // Basic color map used by components
 export const colors = {
   bg: {
@@ -373,7 +640,7 @@ export const spacing = {
 // Minimal component styles mapping used by getComponentClasses
 export const COMPONENT_STYLES = {
   button: {
-    base: 'inline-flex items-center justify-center font-medium transition-all',
+    base: `inline-flex items-center justify-center font-medium transition-all duration-200 ease-out ${AFFORDANCE_STYLES_BASE.clickable.active} hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100 disabled:active:scale-100`,
     variants: {
       primary: 'bg-blue-600 text-white',
       secondary: 'bg-gray-800 text-gray-200',
@@ -388,12 +655,12 @@ export const COMPONENT_STYLES = {
     }
   },
   card: {
-    base: `bg-[var(--color-bg-primary, #0b0f13)] border ${colors.border.primary} rounded-lg`,
+    base: `bg-[var(--color-bg-primary, #0b0f13)] border ${colors.border.primary} rounded-lg transition-all duration-200 ease-out`,
     variants: {
-      default: 'shadow-sm hover:shadow-md',
-      elevated: 'shadow-lg hover:shadow-xl',
-      glass: 'backdrop-blur-xl bg-opacity-60',
-      flat: 'shadow-none'
+      default: 'shadow-sm hover:shadow-md hover:scale-[1.01]',
+      elevated: 'shadow-lg hover:shadow-xl hover:scale-[1.01]',
+      glass: 'backdrop-blur-xl bg-opacity-60 hover:bg-opacity-70',
+      flat: 'shadow-none hover:bg-white/5'
     },
     sizes: {}
   },
@@ -407,12 +674,14 @@ export const COMPONENT_STYLES = {
       transition-all duration-200 ease-out
       focus:outline-none focus:border-[${THEME_COLORS.border.focus}]
       focus:ring-2 focus:ring-[${THEME_COLORS.brand.primary}]/20
+      hover:border-[${THEME_COLORS.border.secondary}]
       disabled:opacity-50 disabled:cursor-not-allowed
+      disabled:hover:border-[${THEME_COLORS.border.primary}]
     `,
     variants: {
       default: '',
-      error: 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20',
-      success: 'border-green-500/50 focus:border-green-500 focus:ring-green-500/20',
+      error: 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20 hover:border-red-500/30',
+      success: 'border-green-500/50 focus:border-green-500 focus:ring-green-500/20 hover:border-green-500/30',
     },
     sizes: {
       sm: `px-3 py-1.5 text-sm ${FOUNDATION.borderRadius.sm}`,
@@ -448,6 +717,29 @@ export const getComponentClasses = (
   return classes.join(' ');
 };
 
+// Component variants with animations and affordance styles
+export const COMPONENT_VARIANTS = {
+  button: {
+    primary: `${COMPONENT_STYLES.button.base} ${COMPONENT_STYLES.button.variants.primary} ${ANIMATIONS.micro.bounce}`,
+    secondary: `${COMPONENT_STYLES.button.base} ${COMPONENT_STYLES.button.variants.secondary} ${ANIMATIONS.state.color}`,
+    ghost: `${COMPONENT_STYLES.button.base} ${COMPONENT_STYLES.button.variants.ghost} hover:bg-white/10 ${ANIMATIONS.state.color}`,
+    danger: `${COMPONENT_STYLES.button.base} ${COMPONENT_STYLES.button.variants.danger} ${ANIMATIONS.micro.bounce}`,
+  },
+
+  input: {
+    default: `${COMPONENT_STYLES.input.base} ${COMPONENT_STYLES.input.sizes.md} ${ANIMATIONS.state.all}`,
+    error: `${COMPONENT_STYLES.input.base} ${COMPONENT_STYLES.input.variants.error} ${COMPONENT_STYLES.input.sizes.md} ${ANIMATIONS.state.all}`,
+    success: `${COMPONENT_STYLES.input.base} ${COMPONENT_STYLES.input.variants.success} ${COMPONENT_STYLES.input.sizes.md} ${ANIMATIONS.state.all}`,
+  },
+
+  card: {
+    default: `${COMPONENT_STYLES.card.base} ${COMPONENT_STYLES.card.variants.default} ${LAYOUT.spacing.padding.card}`,
+    elevated: `${COMPONENT_STYLES.card.base} ${COMPONENT_STYLES.card.variants.elevated} ${LAYOUT.spacing.padding.card}`,
+    glass: `${COMPONENT_STYLES.card.base} ${COMPONENT_STYLES.card.variants.glass} ${LAYOUT.spacing.padding.card}`,
+    compact: `${COMPONENT_STYLES.card.base} ${COMPONENT_STYLES.card.variants.default} ${LAYOUT.spacing.componentSmall}`,
+  },
+} as const;
+
 // =============================================================================
 // 组件类型定义 (Component Types)
 // =============================================================================
@@ -466,7 +758,9 @@ export default {
   emptyStateClass,
   LAYOUT,
   interactions,
-  FOUNDATION
+  FOUNDATION,
+  AFFORDANCE_STYLES,
+  COMPONENT_VARIANTS
 };
 
 

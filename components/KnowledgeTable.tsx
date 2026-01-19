@@ -1,14 +1,51 @@
 import React from 'react';
 import { Prompt } from '../types';
 import { Icons } from './Icons';
-import { colors, interactions } from './ui/styleTokens';
+import { colors, interactions, AFFORDANCE_STYLES } from './ui/styleTokens';
 
 interface KnowledgeTableProps {
   prompts: Prompt[];
   onOpenPrompt: (prompt: Prompt) => void;
+  onNotify?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
-const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpenPrompt }) => {
+// 生成完整的提示词文本（标题 + 系统提示词 + 中文提示词）
+const buildCompletePromptText = (prompt: Prompt): string => {
+  const lines: string[] = [];
+
+  // 标题
+  lines.push(`标题: ${prompt.title}`);
+
+  // 系统提示词（如果存在）
+  if (prompt.systemInstruction) {
+    lines.push('');
+    lines.push('系统提示词:');
+    lines.push(prompt.systemInstruction);
+  }
+
+  // 中文提示词
+  if (prompt.chinesePrompt) {
+    lines.push('');
+    lines.push('中文提示词:');
+    lines.push(prompt.chinesePrompt);
+  } else if (prompt.content) {
+    // 如果没有中文提示词，使用主要内容
+    lines.push('');
+    lines.push('提示词内容:');
+    lines.push(prompt.content);
+  }
+
+  // 英文提示词（如果存在且不同于中文）
+  if (prompt.englishPrompt && prompt.englishPrompt !== prompt.chinesePrompt) {
+    lines.push('');
+    lines.push('English Prompt:');
+    lines.push(prompt.englishPrompt);
+  }
+
+  return lines.join('\n');
+};
+
+const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpenPrompt, onNotify }) => {
   if (prompts.length === 0) {
     return (
       <div className={`flex flex-col items-center justify-center h-64 ${colors.text.muted} animate-slide-up-fade`}>
@@ -37,6 +74,7 @@ const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpe
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[60px] md:min-w-[80px]">Output</th>
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[100px] md:min-w-[120px] hidden md:table-cell">应用场景</th>
               <th scope="col" className="px-2 md:px-4 py-3 min-w-[120px] md:min-w-[140px] hidden lg:table-cell" title="收藏时间">Collected</th>
+              <th scope="col" className="px-2 md:px-4 py-3 min-w-[80px] text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -87,6 +125,26 @@ const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpe
                   <div className={`flex flex-col gap-0.5 text-[10px] ${colors.text.muted} font-mono`}>
                     <span>Collected: {formatDate(p.collectedAt)}</span>
                     <span>Updated: {formatDate(p.updatedAt || p.createdAt)}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 align-top">
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const textToCopy = buildCompletePromptText(p);
+                        navigator.clipboard.writeText(textToCopy).then(() => {
+                          onNotify?.('完整提示词已复制到剪贴板', 'success');
+                        }).catch(err => {
+                          console.error('Failed to copy text: ', err);
+                          onNotify?.('复制失败，请重试', 'error');
+                        });
+                      }}
+                      className={`p-1.5 rounded-md ${AFFORDANCE_STYLES.interaction.clickable.base} ${AFFORDANCE_STYLES.interaction.clickable.hover} ${AFFORDANCE_STYLES.interaction.clickable.active} bg-white/5 hover:bg-white/10 border border-white/10 transition-all duration-200 group`}
+                      title="复制完整提示词 (标题+系统提示词+中文提示词)"
+                    >
+                      <Icons.ClipboardCheck size={14} className={`text-gray-400 group-hover:text-white transition-colors duration-200`} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -178,6 +236,27 @@ const KnowledgeTableComponent: React.FC<KnowledgeTableProps> = ({ prompts, onOpe
               <div className={`text-[10px] ${colors.text.muted} font-mono pt-2 border-t border-white/5`}>
                 <div>Collected: {formatDate(p.collectedAt)}</div>
                 <div>Updated: {formatDate(p.updatedAt || p.createdAt)}</div>
+              </div>
+
+              {/* 操作按钮 */}
+              <div className="flex justify-end pt-2 border-t border-white/5">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const textToCopy = buildCompletePromptText(p);
+                    navigator.clipboard.writeText(textToCopy).then(() => {
+                      onNotify?.('完整提示词已复制到剪贴板', 'success');
+                    }).catch(err => {
+                      console.error('Failed to copy text: ', err);
+                      onNotify?.('复制失败，请重试', 'error');
+                    });
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium ${AFFORDANCE_STYLES.interaction.clickable.base} ${AFFORDANCE_STYLES.interaction.clickable.hover} ${AFFORDANCE_STYLES.interaction.clickable.active} bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 transition-all duration-200`}
+                  title="复制完整提示词"
+                >
+                  <Icons.ClipboardCheck size={12} />
+                  复制提示词
+                </button>
               </div>
             </div>
           </div>

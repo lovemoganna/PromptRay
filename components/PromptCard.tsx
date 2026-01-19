@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Prompt } from '../types';
 import { Icons, getIconForCategory, getColorForCategory } from './Icons';
+import { FOUNDATION, LAYOUT, AFFORDANCE_STYLES } from './ui/styleTokens';
 
 type ActionHandler = (id: string, e: React.MouseEvent) => void;
 
@@ -210,16 +211,15 @@ const PromptCardComponent: React.FC<PromptCardProps> = ({
       data-theme={themeVariant}
       data-selected={isSelected}
       onClick={() => !isLoading && onOpen(prompt)}
-      className={`group relative flex w-full max-w-none flex-col h-full rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${tone.card
-        } ${tone.hover} ${isSelected ? selectedShadow : ''} ${isLoading ? 'pointer-events-none opacity-70' : ''}`}
+      className={`group relative flex w-full max-w-none flex-col h-full ${FOUNDATION.borderRadius.xl} ${AFFORDANCE_STYLES.interaction.clickable.base} ${AFFORDANCE_STYLES.interaction.clickable.hover} ${AFFORDANCE_STYLES.interaction.clickable.active} overflow-hidden ${tone.card} ${tone.hover} ${isSelected ? selectedShadow : ''} ${isLoading ? 'pointer-events-none opacity-70' : ''} ${LAYOUT.elevation.medium}`}
       style={{ animationDelay: `${index * 30}ms` }}
     >
-      <div className="relative z-10 flex h-full flex-col gap-3 p-4">
+      <div className={`relative z-10 flex h-full flex-col ${FOUNDATION.spacing['3xl']} ${LAYOUT.spacing.component}`}>
         {/* Header Section - 统一间距 */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0 flex flex-col gap-2">
+        <div className={`flex items-start justify-between ${FOUNDATION.spacing['3xl']}`}>
+          <div className={`flex-1 min-w-0 flex flex-col ${FOUNDATION.spacing['xl']}`}>
             {/* Status Badges Row */}
-            <div className="flex flex-nowrap items-center gap-2">
+            <div className={`flex flex-nowrap items-center ${FOUNDATION.spacing['xl']}`}>
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs uppercase tracking-wide ${tone.chip}`}>
                 <CategoryIcon size={13} className={categoryColor} /> {prompt.category}
               </span>
@@ -242,7 +242,7 @@ const PromptCardComponent: React.FC<PromptCardProps> = ({
             </div>
 
             {/* Title and Description */}
-            <div className="flex flex-col gap-1">
+            <div className={`flex flex-col ${FOUNDATION.spacing['lg']}`}>
               <h3 className="text-sm font-semibold leading-tight line-clamp-1">{prompt.title}</h3>
               <p className={`text-xs leading-relaxed line-clamp-1 ${tone.subtle}`}>
                 {prompt.description}
@@ -250,7 +250,7 @@ const PromptCardComponent: React.FC<PromptCardProps> = ({
             </div>
 
             {/* Metadata Row */}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 h-[20px] overflow-hidden">
+            <div className={`flex flex-wrap items-center ${FOUNDATION.spacing['xl']} text-xs text-slate-400 h-[20px] overflow-hidden`}>
               {prompt.applicationScene && (
                 <span className="inline-flex items-center gap-1">
                   <Icons.Analysis size={11} className="text-slate-500" />
@@ -273,7 +273,7 @@ const PromptCardComponent: React.FC<PromptCardProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className={`flex items-center gap-0 rounded-full border px-0.5 py-0.5 ${themeVariant === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'
+          <div className={`flex items-center ${FOUNDATION.spacing['xs']} ${FOUNDATION.borderRadius.full} border px-0.5 py-0.5 ${themeVariant === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-white/5 border-white/10'
             }`} onClick={stop}>
             {isTrash && onRestore ? (
               <button
@@ -330,20 +330,20 @@ const PromptCardComponent: React.FC<PromptCardProps> = ({
         </div>
 
         {/* Preview Section */}
-        <div className={`rounded-lg border ${tone.preview} bg-[var(--color-bg-secondary)]`}>
-          <div className="flex items-center justify-between px-3 py-2">
+        <div className={`${FOUNDATION.borderRadius.lg} border ${tone.preview} bg-[var(--color-bg-secondary)]`}>
+          <div className={`flex items-center justify-between ${FOUNDATION.spacing['3xl']} ${FOUNDATION.spacing['xl']}`}>
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide">
               <Icons.Sparkles size={12} />
               <span>Preview</span>
             </div>
           </div>
-          <div className="px-3 pb-3 h-[80px] overflow-hidden">
+          <div className={`${FOUNDATION.spacing['3xl']} pb-3 h-[80px] overflow-hidden`}>
             <PromptContentPreview content={previewSnippet} variant={themeVariant} />
           </div>
         </div>
 
         {/* Stats Row */}
-        <div className="flex flex-nowrap items-center gap-3 text-[11px] text-slate-400/90">
+        <div className={`flex flex-nowrap items-center ${FOUNDATION.spacing['3xl']} text-[11px] text-slate-400/90`}>
           <span className="inline-flex items-center gap-1 whitespace-nowrap">
             <Icons.Activity size={11} className="text-slate-500" /> ~{tokens} tks
           </span>

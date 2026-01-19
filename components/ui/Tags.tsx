@@ -5,70 +5,23 @@ interface TagsProps {
   tags: string[];
   tagInput: string;
   suggestions: string[];
-  onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
   onInputChange: (v: string) => void;
   onInputKeyDown: (e: React.KeyboardEvent) => void;
   onSuggestionClick: (tag: string) => void;
-  compact?: boolean;
-  onAutoTag?: () => void;
-  isTagging?: boolean;
 }
 
 export const Tags: React.FC<TagsProps> = ({
   tags,
   tagInput,
   suggestions,
-  onAddTag,
   onRemoveTag,
   onInputChange,
   onInputKeyDown,
   onSuggestionClick,
-  compact = false,
-  onAutoTag,
-  isTagging = false,
 }) => {
   return (
     <div className={`p-0 bg-transparent transition-all`}>
-      <div className="flex items-center justify-between mb-2">
-        <h4 className={`${compact ? 'text-xs' : 'text-sm'} font-semibold text-gray-400 uppercase tracking-wider`}>
-          标签
-        </h4>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onAddTag(tagInput || 'new-tag')}
-            className="text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] px-2 py-1 rounded-md hover:bg-[var(--color-bg-tertiary)] transition-all duration-200"
-            title="添加标签"
-          >
-            <Icons.Plus size={12} className="inline mr-1" />
-            添加
-          </button>
-          {onAutoTag && (
-            <button
-              onClick={() => onAutoTag()}
-              disabled={isTagging}
-              className={`text-xs font-medium px-2 py-1 rounded-md transition-all duration-200 ${
-                isTagging
-                  ? 'text-blue-400 bg-blue-500/20 cursor-not-allowed'
-                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
-              }`}
-              title="自动标记"
-            >
-              {isTagging ? (
-                <>
-                  <div className="inline-block w-3 h-3 border border-blue-400/50 border-t-blue-400 rounded-full animate-spin mr-1"></div>
-                  标记中...
-                </>
-              ) : (
-                <>
-                  <Icons.Sparkles size={12} className="inline mr-1" />
-                  自动标记
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* 标签输入区域 - 统一协调的视觉设计 */}
       <div className="relative">
